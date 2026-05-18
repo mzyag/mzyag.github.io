@@ -19,3 +19,6 @@ node_modules/
 # Build artifacts
 dist/
 .cache/
+
+# Project docs (local only)
+PROJECT.md
