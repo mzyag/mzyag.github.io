@@ -71,7 +71,7 @@
       </h2>
       <p class="hero-desc">
         <span data-en>12+ years across financial services and internet-scale platforms. I've spent the last three building production AI systems in a regulated, multi-region environment — where every agent output is auditable and every failure has a bounded blast radius.</span>
-        <span data-zh>12+ 年金融服务与大规模互联网平台经验。我设计、构建并运营生产级 AI 系统——在可靠性、可追溯性和治理不可妥协的场景下交付。</span>
+        <span data-zh>12+ 年金融服务与大规模互联网平台经验。过去三年，我在受监管的多区域环境中构建生产级 AI 系统——每个 Agent 输出都可审计，每次故障都有受控的爆炸半径。</span>
       </p>
       <div class="hero-ctas">
         <a href="#projects" class="btn btn-primary"><span data-en>View Projects</span><span data-zh>查看项目</span></a>
@@ -160,6 +160,10 @@
                 <span data-zh><strong>确定性安全门控</strong>——四路结果路由（回答 / 拒绝 / 仅引用 / 升级），使用基于规则的检查而非 LLM 调用。保持控制快速且可审计。</span>
               </li>
               <li>
+                <span data-en><strong>Hybrid retrieval with metadata-aware reranking</strong> — Dense vector search (Milvus, 768-dim embeddings from domain fine-tuned model) handles semantic matching; sparse BM25 handles exact terminology — regulatory codes, entity names, jurisdiction identifiers. A cross-encoder reranker scores the merged candidate set, boosted by metadata signals: jurisdiction match, document currency, and entitlement alignment. Chunk strategy is domain-specific: clause-level for regulations (preserving section hierarchy), paragraph-level for internal documents.</span>
+                <span data-zh><strong>混合检索与元数据感知重排序</strong>——Dense 向量搜索（Milvus，领域微调模型生成的 768 维 embedding）处理语义匹配；稀疏 BM25 处理精确术语——法规编号、实体名称、管辖区标识。Cross-encoder reranker 对合并候选集评分，叠加元数据信号：管辖区匹配、文档时效性和权限对齐。分块策略按领域定制：法规按条款级切分（保留章节层级），内部文档按段落级切分。</span>
+              </li>
+              <li>
                 <span data-en><strong>Replay-based evaluation</strong> — Captured production traces feed offline regression suites. Model updates go through promotion gates before canary rollout.</span>
                 <span data-zh><strong>基于重放的评估</strong>——捕获生产 trace 用于离线回归测试。模型更新需通过准入门控后再进行金丝雀发布。</span>
               </li>
@@ -182,7 +186,7 @@
               </div>
               <div class="metric">
                 <div class="metric-value">~40%</div>
-                <div class="metric-label"><span data-en>Blast radius per incident</span><span data-zh>单次事故影响范围</span></div>
+                <div class="metric-label"><span data-en>Blast radius reduction</span><span data-zh>事故影响范围缩减</span></div>
               </div>
             </div>
           </div>
@@ -219,7 +223,7 @@
                 <span data-zh><strong>可复用的计划执行引擎</strong>——多步骤任务变为受治理的、可重放的管道，在最小权限约束下运行，配备步骤预算和熔断器。</span>
               </li>
               <li>
-                <span data-en><strong>Validation gates for quality-left</strong> — Time window, owner, approval chain, authoritative source, and conflict detection checks run before downstream delivery.</span>
+                <span data-en><strong>Shift-left validation gates</strong> — Time window, owner, approval chain, authoritative source, and conflict detection checks run before downstream delivery.</span>
                 <span data-zh><strong>质量左移的验证门控</strong>——时间窗口、所有者、审批链、权威来源和冲突检测在下游交付前完成检查。</span>
               </li>
               <li>

@@ -129,8 +129,13 @@
     </p>
 
     <p>
-      <span data-en>Persistent memories are <strong>never auto-trimmed.</strong> They're the highest-priority memory tier. If the token budget forces a choice between keeping a persistent memory and keeping a conversation turn, the conversation turn goes. Persistent memories win the budget fight every time — they're reusable knowledge, not ephemeral details. If something has to go, it's the conversation turn.</span>
-      <span data-zh>持久记忆<strong>永不自动裁剪。</strong>它们是最高优先级的记忆层。如果 token 预算迫使在保留持久记忆和保留对话轮次之间选择，对话轮次被丢弃。这是关键洞察：<strong>持久记忆的每 token 价值高于对话历史</strong>，因为它们编码可复用的知识而非短暂的细节。</span>
+      <span data-en>Persistent memories are <strong>never auto-trimmed.</strong> They're the highest-priority memory tier. If the token budget forces a choice between keeping a persistent memory and keeping a conversation turn, the conversation turn goes. The key insight: <strong>persistent memories have higher per-token value than conversation history</strong> — they're reusable knowledge, not ephemeral details. If something has to go, it's the conversation turn.</span>
+      <span data-zh>持久记忆<strong>永不自动裁剪。</strong>它们是最高优先级的记忆层。如果 token 预算迫使在保留持久记忆和保留对话轮次之间选择，对话轮次被丢弃。这是关键洞察：<strong>持久记忆的每 token 价值高于对话历史</strong>，因为它们编码可复用的知识而非短暂的细节。如果必须舍弃什么，舍弃的是对话轮次。</span>
+    </p>
+
+    <p>
+      <span data-en>An obvious question: why not use embedding-based semantic search for memory retrieval, the way RAG retrieves documents? Three reasons. First, the corpus is small — typically 20–50 records per user — so a linear scan is sub-millisecond; vector indexing adds complexity without speed gain. Second, embedding similarity is unreliable for short directive memories ("always reply in Chinese") — these are instructions, not documents, and embedding models rank them poorly against diverse queries. Third, we inject all feedback and user memories unconditionally (they're compact and high-priority), so retrieval accuracy only matters for lower-priority dimensions where structured field matching (type, scope, recency) outperforms semantic similarity. If the corpus grew past ~500 records per user, we'd revisit this — but at current scale, keyword + structured metadata beats embeddings.</span>
+      <span data-zh>一个显而易见的问题：为什么不像 RAG 检索文档那样，用基于 embedding 的语义搜索来检索记忆？三个原因。第一，语料库很小——通常每用户 20-50 条——线性扫描亚毫秒完成，向量索引增加复杂度却没有速度收益。第二，embedding 相似度对短指令性记忆（"始终用中文回复"）不可靠——这些是指令而非文档，embedding 模型在面对多样化查询时排名很差。第三，我们无条件注入所有 Feedback 和 User 记忆（它们紧凑且高优先级），检索准确性只对低优先级维度有意义，而在那里结构化字段匹配（类型、范围、时效性）优于语义相似度。如果语料库增长到每用户约 500 条以上，我们会重新评估——但在当前规模，关键词 + 结构化元数据优于 embedding。</span>
     </p>
 
     <h3><span data-en>Tier 3: Summaries (Compressed Memory)</span><span data-zh>第三层：摘要（压缩记忆）</span></h3>
@@ -360,7 +365,7 @@
 
     <p>
       <span data-en>Self-improvement is not autonomous. This is deliberate. The agent doesn't modify its own prompts. Humans analyze the data, decide what to change, make the change, and measure the result. The agent's contribution is generating structured, honest data about its own performance. Autonomous self-modification sounds powerful, but in a production system where the agent handles real user work, an unvalidated prompt change can silently degrade quality for days. We keep the human in the improvement loop for the same reason we keep the human in the execution loop — because the cost of an undetected bad change is much higher than the cost of a human review.</span>
-      <span data-zh>关键洞察：<strong>自改进不是自主的。</strong>Agent 不修改自己的 prompt。人类分析数据、决定改什么、做出变更、衡量结果。Agent 的贡献是生成关于自身表现的结构化、诚实的数据。自主自修改听起来强大，但在处理真实用户工作的生产系统中，一次未验证的 prompt 变更可以悄悄降低质量好几天。我们在改进循环中保持人类参与，原因和在执行循环中保持人类参与一样——因为未被发现的坏变更的代价远高于人类审查的代价。</span>
+      <span data-zh><strong>自改进不是自主的。</strong>这是刻意为之的。Agent 不修改自己的 prompt。人类分析数据、决定改什么、做出变更、衡量结果。Agent 的贡献是生成关于自身表现的结构化、诚实的数据。自主自修改听起来强大，但在处理真实用户工作的生产系统中，一次未验证的 prompt 变更可以悄悄降低质量好几天。我们在改进循环中保持人类参与，原因和在执行循环中保持人类参与一样——因为未被发现的坏变更的代价远高于人类审查的代价。</span>
     </p>
 
     <h3><span data-en>What the Loop Looks Like in Practice</span><span data-zh>循环在实践中的样子</span></h3>

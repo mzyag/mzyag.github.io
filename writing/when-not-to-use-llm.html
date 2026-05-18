@@ -66,7 +66,7 @@
 
     <p class="article-lead">
       <span data-en>After two years of building production AI agent systems, the most valuable skill I've developed isn't prompt engineering or RAG optimization. It's knowing when to reach for an LLM and when to write a regular function. The default should be skepticism — every LLM call in a pipeline is latency, cost, and a non-determinism surface. You need a clear reason to add one, not a clear reason to avoid it.</span>
-      <span data-zh>在构建生产级 AI Agent 系统两年后，我培养的最有价值的技能不是提示工程或 RAG 优化。而是知道何时使用 LLM、何时写一个普通函数。我认识的最好的 AI 工程师都有这个特质：他们对在任何管道中添加 LLM 推理深表怀疑，并且有一个清晰的框架来判断何时值得付出代价。</span>
+      <span data-zh>在构建生产级 AI Agent 系统两年后，我培养的最有价值的技能不是提示工程或 RAG 优化。而是知道何时使用 LLM、何时写一个普通函数。默认态度应该是怀疑——管道中的每个 LLM 调用都是延迟、成本和不确定性表面。你需要一个明确的理由来添加它，而不是一个明确的理由来避免它。</span>
     </p>
 
     <h2><span data-en>The LLM Tax</span><span data-zh>LLM 税</span></h2>
@@ -154,9 +154,9 @@
 
     <ol>
       <li><span data-en><strong>Is the input structured or unstructured?</strong> If structured, you probably don't need an LLM to understand it.</span><span data-zh><strong>输入是结构化的还是非结构化的？</strong>如果是结构化的，你可能不需要 LLM 来理解它。</span></li>
-      <li><span data-en><strong>Is the output format fixed or flexible?</strong> Fixed-format outputs mean the LLM is just a formatter. Jinja2 is faster and doesn't hallucinate field names.</span><span data-zh><strong>输出格式是固定的还是灵活的？</strong>如果是固定的，LLM 只是一个格式化器——有更便宜的格式化方式。</span></li>
-      <li><span data-en><strong>Is there a human in the loop?</strong> Without one, every LLM error goes straight to production. That changes the risk calculus entirely.</span><span data-zh><strong>是否有人在环路中？</strong>如果没有，LLM 错误的代价更高——你需要比 LLM 能提供的更强的保证。</span></li>
-      <li><span data-en><strong>What's the cost of a wrong answer?</strong> In financial and legal contexts, we gate every LLM output through deterministic checks and human sign-off. No exceptions.</span><span data-zh><strong>错误答案的代价是什么？</strong>如果很高（财务、法律、安全），门控和人工审查必须包围任何 LLM 使用。</span></li>
+      <li><span data-en><strong>Is the output format fixed or flexible?</strong> Fixed-format outputs mean the LLM is just a formatter. Jinja2 is faster and doesn't hallucinate field names.</span><span data-zh><strong>输出格式是固定的还是灵活的？</strong>固定格式的输出意味着 LLM 只是一个格式化器。Jinja2 更快，而且不会幻觉出字段名。</span></li>
+      <li><span data-en><strong>Is there a human in the loop?</strong> Without one, every LLM error goes straight to production. That changes the risk calculus entirely.</span><span data-zh><strong>是否有人在环路中？</strong>如果没有，每个 LLM 错误都直接进入生产。这完全改变了风险计算。</span></li>
+      <li><span data-en><strong>What's the cost of a wrong answer?</strong> In financial and legal contexts, we gate every LLM output through deterministic checks and human sign-off. No exceptions.</span><span data-zh><strong>错误答案的代价是什么？</strong>在财务和法律场景中，我们对每一个 LLM 输出都通过确定性检查和人工签核进行门控。没有例外。</span></li>
       <li><span data-en><strong>How do you evaluate correctness?</strong> If you can't define a metric for "correct," you can't tell if the LLM is helping or hurting.</span><span data-zh><strong>如何评估正确性？</strong>如果你无法定义"正确"的指标，你就无法判断 LLM 是在帮忙还是在添乱。</span></li>
     </ol>
 
@@ -184,8 +184,8 @@
     </ul>
 
     <p>
-      <span data-en>The LLM handles understanding and generation — natural language, synthesis, structured content. Everything else stays in deterministic code, where it's fast, testable, and auditable. We enforce this split at the architecture level, not through developer discipline.</span>
-      <span data-zh>这不是妥协。这是一个设计原则。LLM 做它独特擅长的事——理解自然语言、综合信息、生成结构化内容。其他一切都留在确定性代码中，在那里它快速、可测试、可审计。</span>
+      <span data-en>This isn't a compromise — it's a design principle. The LLM handles understanding and generation — natural language, synthesis, structured content. Everything else stays in deterministic code, where it's fast, testable, and auditable. We enforce this split at the architecture level, not through developer discipline.</span>
+      <span data-zh>这不是妥协——这是一个设计原则。LLM 做它独特擅长的事——理解自然语言、综合信息、生成结构化内容。其他一切都留在确定性代码中，在那里它快速、可测试、可审计。我们在架构层面强制执行这一分工，而非依赖开发者自律。</span>
     </p>
 
     <blockquote>

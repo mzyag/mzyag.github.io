@@ -158,7 +158,7 @@
 
     <p>
       <span data-en><strong>Circuit breakers with fallback hierarchies.</strong> We use a three-level fallback: primary service → cached response (with staleness header) → static default. The circuit breaker trips after 5 consecutive failures or >50% error rate in a 30-second window. The part people skip: testing the fallback path with the same rigor as the primary. We run monthly "dependency down" drills where we deliberately trip circuit breakers in staging and verify the fallback chain.</span>
-      <span data-zh><strong>带降级层次的熔断器。</strong> 我们用三级降级：主服务 → 缓存响应（带过期 Header） → 静态默认值。熔断器在连续 5 次失败或 30 秒窗口内 >50% 错误率时触发。关键洞察：降级路径必须和主路径一样严格测试。我们每月做"依赖下线"演练，在预发环境故意触发熔断器并验证降级链。</span>
+      <span data-zh><strong>带降级层次的熔断器。</strong> 我们用三级降级：主服务 → 缓存响应（带过期 Header） → 静态默认值。熔断器在连续 5 次失败或 30 秒窗口内 >50% 错误率时触发。大家常跳过的部分是：降级路径必须和主路径一样严格测试。我们每月做"依赖下线"演练，在预发环境故意触发熔断器并验证降级链。</span>
     </p>
 
     <p>
@@ -300,6 +300,11 @@
       <span data-en>The best distributed systems engineers I've worked with share one trait: they've been paged enough times to respect the fundamentals. Not because they read about them — because they've debugged the consequences of ignoring them at 3 AM.</span>
       <span data-zh>我共事过的最好的分布式系统工程师有一个共同特质：他们被呼叫的次数足够多，以至于敬畏基本功。不是因为读过这些模式——而是因为凌晨 3 点调试过忽略它们的后果。</span>
     </p>
+
+    <div class="article-page-footer">
+      <p><span data-en>Written by Ming Zhou · 2025</span><span data-zh>作者：Ming Zhou · 2025</span></p>
+      <a href="../#writing" class="article-page-back">&larr; <span data-en>Back to all writing</span><span data-zh>返回文章列表</span></a>
+    </div>
   </main>
 
   <script src="../js/main.js"></script>

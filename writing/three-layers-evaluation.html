@@ -103,6 +103,7 @@
       <li><span data-en><strong>Output format compliance</strong> — Does the structured output match the declared schema? Are required fields present?</span><span data-zh><strong>输出格式合规性</strong>——结构化输出是否匹配声明的 schema？必需字段是否存在？</span></li>
       <li><span data-en><strong>Citation accuracy</strong> — Does each citation actually support the claim it's attached to? Can the cited passage be found in the source document?</span><span data-zh><strong>引用准确性</strong>——每个引用是否确实支持它所附属的声明？引用的段落是否能在源文档中找到？</span></li>
       <li><span data-en><strong>Tool call correctness</strong> — When the agent decides to call a tool, does it pass the right parameters? Does it handle the response correctly?</span><span data-zh><strong>工具调用正确性</strong>——当 Agent 决定调用工具时，是否传递了正确的参数？是否正确处理了响应？</span></li>
+      <li><span data-en><strong>Faithfulness (groundedness)</strong> — Does the generated answer actually follow from the retrieved context, or does it introduce unsupported claims? We extract atomic claims from the output and score each against the retrieved context using an NLI (Natural Language Inference) classifier — any claim scored as "contradiction" or "neutral" is flagged as unfaithful. This catches a subtler failure than citation accuracy: the citation might point to the right document, but the agent's synthesis might misrepresent what the document actually says.</span><span data-zh><strong>忠实度（有据性）</strong>——生成的答案是否确实基于检索到的上下文，还是引入了无支撑的声明？我们从输出中提取原子声明，用 NLI（自然语言推断）分类器对每个声明与检索上下文进行评分——任何被判为"矛盾"或"中立"的声明都标记为不忠实。这捕获的是比引用准确性更微妙的故障：引用可能指向正确的文档，但 Agent 的综合可能曲解了文档实际表达的内容。</span></li>
     </ul>
 
     <p>
@@ -146,6 +147,11 @@
       <span data-zh>基于重放的测试能捕获组件测试遗漏的回归。一个轻微改变检索排名的模型更新可能通过所有组件测试，但导致错误管辖区引用增加 3%——这种回归只有在端到端重放中才能显现。</span>
     </p>
 
+    <p>
+      <span data-en>The hardest part of replay is the comparison methodology. For structured outputs (decisions, extracted entities, classifications), we use exact field matching with tolerance rules — a jurisdiction code must match exactly, but a confidence score within ±0.05 is acceptable. For free-text responses, we extract atomic claims from both baseline and candidate outputs, then compute pairwise semantic similarity using embedding cosine distance. The regression threshold is a 3% drop in average similarity. For citations specifically, we compare cited passage IDs and treat any previously-correct citation replaced by an incorrect one as a blocking failure — citation regression is never acceptable regardless of aggregate metrics. We tried LLM-as-judge for comparison early on, but the meta-evaluation problem (who evaluates the evaluator?) made it unsuitable as a promotion gate. Deterministic comparison rules are less nuanced but reproducible.</span>
+      <span data-zh>重放最难的部分是对比方法论。对于结构化输出（决策、提取的实体、分类），我们使用精确字段匹配加容差规则——管辖区代码必须精确匹配，但置信度分数在 ±0.05 内可接受。对于自由文本响应，我们从基线和候选输出中提取原子声明，然后用 embedding 余弦距离计算成对语义相似度。回归阈值是平均相似度下降 3%。对于引用，我们比较被引段落 ID，将任何之前正确的引用被替换为错误引用视为阻断性失败——引用回归无论聚合指标如何都不可接受。我们早期尝试过用 LLM-as-judge 做对比，但元评估问题（谁来评估评估者？）使其不适合作为准入门控。确定性对比规则不够精细但可复现。</span>
+    </p>
+
     <h3><span data-en>Policy Compliance Checks</span><span data-zh>策略合规检查</span></h3>
 
     <p>
@@ -186,11 +192,11 @@
 
     <p>
       <span data-en>When operational metrics show a spike in rejection rates (L3), you replay recent traces to find which outputs are failing (L2), then drill into component metrics to identify whether it's a retrieval problem, a generation problem, or a gating misconfiguration (L1). That last category — gating — deserves special attention, because a misconfigured gate can silently route good inputs to rejection or bad inputs to production (see <a href="deterministic-gating.html">Why Deterministic Gating Matters</a> for the full four-outcome routing pattern).</span>
-      <span data-zh>当运营指标显示拒绝率飙升（L3）时，你重放最近的 trace 找出哪些输出失败（L2），然后深入组件指标以确定是检索问题、生成问题还是门控配置错误（L1）。最后一类——门控——值得特别关注，因为配置错误的门控可以悄无声息地将好输入路由到拒绝或将坏输入放行到生产环境（完整的四象限路由模式详见<a href="deterministic-gating.html">为什么确定性门控很重要</a>）。</span>
+      <span data-zh>当运营指标显示拒绝率飙升（L3）时，你重放最近的 trace 找出哪些输出失败（L2），然后深入组件指标以确定是检索问题、生成问题还是门控配置错误（L1）。最后一类——门控——值得特别关注，因为配置错误的门控可以悄无声息地将好输入路由到拒绝或将坏输入放行到生产环境（完整的四结果路由模式详见<a href="deterministic-gating.html">为什么确定性门控很重要</a>）。</span>
     </p>
 
     <p>
-      <span data-en>Going the other direction: every incident at L3 should generate new test cases at L2. Every failure pattern at L2 should inform new component assertions at L1.</span>
+      <span data-en>Going the other direction: every incident at L3 should generate new test cases at L2. Every failure pattern at L2 should inform new component assertions at L1. Each layer makes the others stronger.</span>
       <span data-zh>反方向：L3 的每个事件应在 L2 生成新测试用例。L2 的每个失败模式应在 L1 产生新的组件断言。每一层使其他层更强。</span>
     </p>
 

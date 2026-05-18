@@ -66,7 +66,7 @@
 
     <p class="article-lead">
       <span data-en>LLMs are probabilistic by nature. Every response carries uncertainty. In a demo, that's fine — a plausible-sounding answer is good enough. In production, especially in regulated environments, "plausible" can mean "wrong in a way that causes real harm." You can't make the LLM itself deterministic. So you wrap it in control points that are.</span>
-      <span data-zh>LLM 天生是概率性的。每个回答都带有不确定性。在演示中这没问题——听起来合理的答案就够了。但在生产环境中，特别是受监管的环境中，"合理"可能意味着"以造成实际损害的方式出错"。解决方案不是让 LLM 变得更确定性——而是用确定性控制点包裹它。</span>
+      <span data-zh>LLM 天生是概率性的。每个回答都带有不确定性。在演示中这没问题——听起来合理的答案就够了。但在生产环境中，特别是受监管的环境中，"合理"可能意味着"以造成实际损害的方式出错"。你无法让 LLM 本身变得确定性。所以你用确定性控制点包裹它。</span>
     </p>
 
     <h2><span data-en>The Production Gap</span><span data-zh>生产差距</span></h2>
@@ -89,8 +89,8 @@
     </ul>
 
     <p>
-      <span data-en>None of these are LLM problems. They're systems engineering problems, and you solve them the same way you'd solve any systems problem: deterministic code at the boundaries, with audit logs.</span>
-      <span data-zh>这些不是 LLM 问题。它们是系统工程问题。它们需要系统工程解决方案——位于概率性 LLM 和现实世界操作之间的确定性、可测试、可审计的控制点。</span>
+      <span data-en>None of these are LLM problems. They're systems engineering problems — and they need systems engineering solutions: deterministic, testable, auditable control points between the probabilistic LLM and real-world operations.</span>
+      <span data-zh>这些不是 LLM 问题。它们是系统工程问题——需要系统工程解决方案：位于概率性 LLM 和现实世界操作之间的确定性、可测试、可审计的控制点。</span>
     </p>
 
     <h2><span data-en>What Is Deterministic Gating?</span><span data-zh>什么是确定性门控？</span></h2>
@@ -114,7 +114,7 @@
 
     <p>
       <span data-en>This routing is <strong>not done by the LLM</strong>. The LLM generates a candidate answer and metadata (confidence signals, retrieved evidence, risk indicators). Then deterministic code — regular if/else logic, threshold checks, policy lookups — routes the output to one of the four outcomes.</span>
-      <span data-zh>关键洞察是这个路由<strong>不是由 LLM 完成的</strong>。LLM 生成候选答案和元数据（置信度信号、检索到的证据、风险指标）。然后确定性代码——常规的 if/else 逻辑、阈值检查、策略查找——将输出路由到四个结果之一。</span>
+      <span data-zh>这个路由<strong>不是由 LLM 完成的</strong>。LLM 生成候选答案和元数据（置信度信号、检索到的证据、风险指标）。然后确定性代码——常规的 if/else 逻辑、阈值检查、策略查找——将输出路由到四个结果之一。</span>
     </p>
 
     <h2><span data-en>Why Not Just Guardrails?</span><span data-zh>为什么不只用 Guardrails？</span></h2>
@@ -143,14 +143,14 @@
 
     <h3><span data-en>Answerability Check</span><span data-zh>可回答性检查</span></h3>
     <p>
-      <span data-en>Before generation, verify that the retrieved context actually addresses the user's question. This is a simple semantic overlap check — not another LLM reasoning step. If the retrieved documents don't contain information relevant to the query, the gate routes to "citations-only" or "refuse" instead of letting the LLM hallucinate an answer from thin air.</span>
-      <span data-zh>在生成之前，验证检索到的上下文是否确实针对用户的问题。这是一个简单的语义重叠检查——不是另一个 LLM 推理步骤。如果检索到的文档不包含与查询相关的信息，门控将路由到"仅引用"或"拒绝"，而不是让 LLM 凭空幻觉出一个答案。</span>
+      <span data-en>Before generation, verify that the retrieved context actually addresses the user's question. We compute cosine similarity between the query embedding and each retrieved chunk embedding, then check whether at least two chunks exceed a relevance threshold (0.72, calibrated on 5,000 labeled query-document pairs per business line). If no chunk passes, the gate routes to "refuse." If fewer than two pass, it routes to "citations-only." The LLM never sees irrelevant context — this single check eliminated roughly 60% of hallucinated answers in our first month. It's a vector operation, not an LLM reasoning step: ~3ms per request.</span>
+      <span data-zh>在生成之前，验证检索到的上下文是否确实针对用户的问题。我们计算查询向量与每个检索到的 chunk 向量之间的余弦相似度，检查是否至少有两个 chunk 超过相关性阈值（0.72，基于每条业务线 5,000 个标注的 query-document 对校准）。如果没有 chunk 通过，门控路由到"拒绝"。如果不足两个通过，路由到"仅引用"。LLM 永远不会看到不相关的上下文——仅这一项检查就在上线首月消除了约 60% 的幻觉回答。这是向量运算，不是 LLM 推理步骤：每次请求约 3ms。</span>
     </p>
 
     <h3><span data-en>Evidence Threshold</span><span data-zh>证据阈值</span></h3>
     <p>
-      <span data-en>Every claim in the output must be backed by a retrievable citation. We enforce "no evidence, no conclusion" as a platform contract. The gate counts evidence items against claims. If coverage drops below the threshold, the output is downgraded to citations-only.</span>
-      <span data-zh>输出中的每个声明都必须有可检索的引用支持。我们将"无证据、无结论"作为平台契约执行。门控计算证据项与声明的对应关系。如果覆盖率低于阈值，输出降级为仅引用。</span>
+      <span data-en>Every claim in the output must be backed by a retrievable citation. We enforce "no evidence, no conclusion" as a platform contract. The gate extracts claims from the LLM's structured output (each answer section maps to one claim), then scores each claim-evidence pair with a lightweight cross-encoder reranker — the same model used in the retrieval pipeline, repurposed as a verification step. If any claim scores below the evidence relevance threshold (0.65), or if overall claim coverage drops below the per-domain minimum (93% for fund compliance, 90% for credit advisory — tuned separately because evidence corpus structure varies), the output is downgraded to citations-only.</span>
+      <span data-zh>输出中的每个声明都必须有可检索的引用支持。我们将"无证据、无结论"作为平台契约执行。门控从 LLM 的结构化输出中提取声明（每个回答段落对应一个声明），然后用轻量级 cross-encoder reranker 对每个声明-证据对打分——与检索管道中使用的同一模型，在此复用为验证步骤。如果任何声明的证据相关性分数低于阈值（0.65），或整体声明覆盖率低于按领域设定的最低线（基金合规 93%、信贷咨询 90%——分别调优，因为证据语料库结构差异大），输出降级为仅引用。</span>
     </p>
 
     <h3><span data-en>Version and Jurisdiction Constraints</span><span data-zh>版本和管辖区约束</span></h3>
@@ -183,7 +183,7 @@
     </ul>
 
     <p>
-      <span data-en>The counterintuitive lesson: by making the agent refuse or escalate more often, we made the answers it did deliver significantly more trustworthy. In production, trust compounds. An agent that's right 100% of the time on 85% of queries is far more valuable than one that's right 95% of the time on 100% of queries.</span>
+      <span data-en>The counterintuitive lesson: by making the agent refuse or escalate more often, we made the answers it did deliver significantly more trustworthy. In production, trust compounds — but collapses in a single incident. An agent that's right 100% of the time on 85% of queries is far more valuable than one that's right 95% of the time on 100% of queries.</span>
       <span data-zh>反直觉的教训：通过让 Agent 更频繁地拒绝或升级，我们使其确实交付的答案显著更可信。在生产环境中，信任是一点一点攒起来的，但崩塌只需要一次。一个对 85% 的查询 100% 正确的 Agent 远比一个对 100% 的查询 95% 正确的 Agent 更有价值。</span>
     </p>
 
