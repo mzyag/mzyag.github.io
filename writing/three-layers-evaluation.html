@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en" data-lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Three Layers of Evaluation for Agents in Production — Ming Zhou</title>
+  <meta name="description" content="Component-level, workflow-level, and operational-level evaluation — why you need all three, and how replay-based testing connects them.">
+  <link rel="stylesheet" href="../css/style.css">
+</head>
+<body>
+
+  <nav class="nav scrolled" id="nav">
+    <div class="nav-inner">
+      <a class="nav-logo" href="../">MZ<span class="nav-logo-dot">.</span></a>
+      <div class="nav-links" id="navLinks">
+        <a href="../#projects"><span data-en>Projects</span><span data-zh>项目</span></a>
+        <a href="../#writing"><span data-en>Writing</span><span data-zh>文章</span></a>
+        <a href="../#about"><span data-en>About</span><span data-zh>关于</span></a>
+        <a href="../#contact"><span data-en>Contact</span><span data-zh>联系</span></a>
+        <button class="lang-toggle" id="langToggle" aria-label="Toggle language">
+          <span data-en>中文</span><span data-zh>EN</span>
+        </button>
+      </div>
+      <button class="nav-hamburger" id="navHamburger" aria-label="Menu">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+  </nav>
+
+  <main class="article-page">
+    <a href="../#writing" class="article-page-back">&larr; <span data-en>Back to all writing</span><span data-zh>返回文章列表</span></a>
+
+    <div class="article-page-meta">
+      <span>2025</span>
+      <span><span data-en>7 min read</span><span data-zh>7 分钟阅读</span></span>
+    </div>
+
+    <h1>
+      <span data-en>Three Layers of Evaluation for Agents in Production</span>
+      <span data-zh>生产级 Agent 的三层评估体系</span>
+    </h1>
+
+    <p class="article-lead">
+      <span data-en>Everyone agrees that evaluating AI agents is important. But most teams stop at one layer — usually retrieval quality or end-to-end accuracy — and then wonder why production issues keep surprising them. After operating an agent platform across multiple business lines, I've found that you need three distinct layers of evaluation, each catching a different class of failure.</span>
+      <span data-zh>每个人都认为评估 AI Agent 很重要。但大多数团队停在一个层面——通常是检索质量或端到端准确性——然后困惑为什么生产问题不断出现。在运营一个跨多条业务线的 Agent 平台后，我发现你需要三个不同的评估层，每一层捕获不同类别的故障。</span>
+    </p>
+
+    <h2><span data-en>Why One Layer Isn't Enough</span><span data-zh>为什么一层不够</span></h2>
+
+    <p>
+      <span data-en>Consider a scenario we've encountered multiple times: retrieval evaluation shows 92% relevance. End-to-end evaluation on a test set shows 88% accuracy. The team ships with confidence. Two weeks later, a business line reports that 15% of outputs are being rejected by downstream reviewers.</span>
+      <span data-zh>考虑一个我们多次遇到的场景：检索评估显示 92% 的相关性。在测试集上的端到端评估显示 88% 的准确性。团队自信地发布了。两周后，一条业务线报告 15% 的输出被下游审查者拒绝。</span>
+    </p>
+
+    <p>
+      <span data-en>What happened? The test set didn't cover jurisdiction-specific edge cases. The retrieval was relevant but pulled documents from the wrong version. The operational metrics that would have caught this — rejection rates, rework counts — weren't being tracked as part of the evaluation system.</span>
+      <span data-zh>发生了什么？测试集没有覆盖特定管辖区的边缘情况。检索是相关的，但拉取了错误版本的文档。能够捕获这个问题的运营指标——拒绝率、返工次数——没有作为评估系统的一部分被跟踪。</span>
+    </p>
+
+    <p>
+      <span data-en>Each evaluation layer answers a different question. Skip one, and you have a blind spot.</span>
+      <span data-zh>每个评估层回答不同的问题。跳过一层，你就有一个盲区。</span>
+    </p>
+
+    <h2><span data-en>Layer 1: Component Evaluation</span><span data-zh>第一层：组件级评估</span></h2>
+
+    <p>
+      <span data-en><strong>Question: Are the individual pieces working correctly?</strong></span>
+      <span data-zh><strong>问题：各个独立组件是否正常工作？</strong></span>
+    </p>
+
+    <p>
+      <span data-en>This is the most familiar layer. You test each component of your agent pipeline independently:</span>
+      <span data-zh>这是最熟悉的层。你独立测试 Agent 管道的每个组件：</span>
+    </p>
+
+    <ul>
+      <li><span data-en><strong>Retrieval quality</strong> — Are you getting the right documents? Precision, recall, and ranking metrics (MRR, NDCG) on a curated test set.</span><span data-zh><strong>检索质量</strong>——是否获取了正确的文档？在精选测试集上的精确率、召回率和排名指标（MRR、NDCG）。</span></li>
+      <li><span data-en><strong>Output format compliance</strong> — Does the structured output match the declared schema? Are required fields present?</span><span data-zh><strong>输出格式合规性</strong>——结构化输出是否匹配声明的 schema？必需字段是否存在？</span></li>
+      <li><span data-en><strong>Citation accuracy</strong> — Does each citation actually support the claim it's attached to? Can the cited passage be found in the source document?</span><span data-zh><strong>引用准确性</strong>——每个引用是否确实支持它所附属的声明？引用的段落是否能在源文档中找到？</span></li>
+      <li><span data-en><strong>Tool call correctness</strong> — When the agent decides to call a tool, does it pass the right parameters? Does it handle the response correctly?</span><span data-zh><strong>工具调用正确性</strong>——当 Agent 决定调用工具时，是否传递了正确的参数？是否正确处理了响应？</span></li>
+    </ul>
+
+    <p>
+      <span data-en>Component evaluation runs fast (minutes, not hours) and gives immediate, actionable feedback. It should run on every PR. When it fails, you know exactly which component broke.</span>
+      <span data-zh>组件级评估运行速度快（分钟而非小时），提供即时、可操作的反馈。它应该在每个 PR 上运行。当它失败时，你确切知道哪个组件出了问题。</span>
+    </p>
+
+    <p>
+      <span data-en>The limitation: passing all component tests doesn't mean the end-to-end workflow works. A retrieval system that returns relevant documents from the wrong jurisdiction will pass a relevance test but fail the workflow.</span>
+      <span data-zh>局限性：通过所有组件测试并不意味着端到端工作流有效。一个从错误管辖区返回相关文档的检索系统会通过相关性测试，但在工作流中失败。</span>
+    </p>
+
+    <h2><span data-en>Layer 2: Workflow Evaluation</span><span data-zh>第二层：工作流级评估</span></h2>
+
+    <p>
+      <span data-en><strong>Question: Does the complete pipeline produce correct, compliant results?</strong></span>
+      <span data-zh><strong>问题：完整的管道是否产生正确、合规的结果？</strong></span>
+    </p>
+
+    <p>
+      <span data-en>Workflow evaluation tests the agent end-to-end on representative tasks. But the key word is "representative" — not synthetic benchmarks, but traces captured from production.</span>
+      <span data-zh>工作流评估在代表性任务上端到端测试 Agent。但关键词是"代表性"——不是合成基准测试，而是从生产中捕获的 trace。</span>
+    </p>
+
+    <h3><span data-en>Replay-Based Testing</span><span data-zh>基于重放的测试</span></h3>
+
+    <p>
+      <span data-en>This is the most valuable technique we've adopted. The approach:</span>
+      <span data-zh>这是我们采用的最有价值的技术。方法：</span>
+    </p>
+
+    <ol>
+      <li><span data-en><strong>Capture</strong> — Every production request generates a trace: input, retrieved context, generated output, gate decisions, final outcome, and human feedback (if any).</span><span data-zh><strong>捕获</strong>——每个生产请求生成一个 trace：输入、检索上下文、生成输出、门控决策、最终结果和人工反馈（如有）。</span></li>
+      <li><span data-en><strong>Curate</strong> — Select traces that cover important domains, edge cases, and past failures. Tag them with expected outcomes.</span><span data-zh><strong>策展</strong>——选择覆盖重要领域、边缘情况和过去故障的 trace。用预期结果标记它们。</span></li>
+      <li><span data-en><strong>Replay</strong> — Before any model update, configuration change, or prompt modification, replay the curated set against the candidate version. Compare outputs to expected outcomes.</span><span data-zh><strong>重放</strong>——在任何模型更新、配置更改或提示词修改之前，针对候选版本重放策展集。将输出与预期结果进行比较。</span></li>
+      <li><span data-en><strong>Gate</strong> — The candidate must pass a regression threshold before promotion. If it's worse on any critical trace, it doesn't ship.</span><span data-zh><strong>门控</strong>——候选版本必须通过回归阈值才能升级。如果在任何关键 trace 上表现更差，就不发布。</span></li>
+    </ol>
+
+    <p>
+      <span data-en>Replay-based testing catches regressions that component tests miss. A model update that slightly changes retrieval ranking might pass all component tests but cause a 3% increase in wrong-jurisdiction citations — a regression that only shows up in end-to-end replay.</span>
+      <span data-zh>基于重放的测试能捕获组件测试遗漏的回归。一个轻微改变检索排名的模型更新可能通过所有组件测试，但导致错误管辖区引用增加 3%——这种回归只有在端到端重放中才能显现。</span>
+    </p>
+
+    <h3><span data-en>Policy Compliance Checks</span><span data-zh>策略合规检查</span></h3>
+
+    <p>
+      <span data-en>Beyond correctness, workflow evaluation checks policy compliance: Does the output respect jurisdiction constraints? Are entitlements enforced? Are disclosure requirements met? These are hard requirements that can't be evaluated at the component level.</span>
+      <span data-zh>除了正确性，工作流评估还检查策略合规性：输出是否尊重管辖区约束？权限是否被执行？披露要求是否被满足？这些是无法在组件级别评估的硬性要求。</span>
+    </p>
+
+    <h2><span data-en>Layer 3: Operational Evaluation</span><span data-zh>第三层：运营级评估</span></h2>
+
+    <p>
+      <span data-en><strong>Question: Is the system behaving well in the real world, right now?</strong></span>
+      <span data-zh><strong>问题：系统现在在真实世界中表现良好吗？</strong></span>
+    </p>
+
+    <p>
+      <span data-en>This layer watches the live system. Not test data — real users, real queries, real outcomes. It tracks:</span>
+      <span data-zh>这一层监控实时系统。不是测试数据——真实用户、真实查询、真实结果。它跟踪：</span>
+    </p>
+
+    <ul>
+      <li><span data-en><strong>SLOs</strong> — Latency (p50, p95, p99), availability, error rate. Standard SRE metrics, applied to AI workloads.</span><span data-zh><strong>SLO</strong>——延迟（p50、p95、p99）、可用性、错误率。标准 SRE 指标，应用于 AI 工作负载。</span></li>
+      <li><span data-en><strong>Business metrics</strong> — Downstream rejection rates, rework counts, escalation rates. These are the metrics that business stakeholders actually care about.</span><span data-zh><strong>业务指标</strong>——下游拒绝率、返工次数、升级率。这些是业务利益相关者真正关心的指标。</span></li>
+      <li><span data-en><strong>Drift detection</strong> — Are answer patterns changing without a model change? Drift in output distribution can indicate data pipeline issues, upstream schema changes, or prompt injection attempts.</span><span data-zh><strong>漂移检测</strong>——在没有模型更改的情况下，答案模式是否在变化？输出分布的漂移可能表明数据管道问题、上游 schema 更改或提示注入尝试。</span></li>
+      <li><span data-en><strong>Incident learning</strong> — Every P1/P2 incident should produce a root cause analysis and a new regression test at Layer 2. This closes the loop.</span><span data-zh><strong>事件学习</strong>——每个 P1/P2 事件应产生根因分析和一个新的第二层回归测试。这闭合了循环。</span></li>
+    </ul>
+
+    <h2><span data-en>Connecting the Layers</span><span data-zh>连接各层</span></h2>
+
+    <p>
+      <span data-en>The three layers form a feedback loop:</span>
+      <span data-zh>三层形成一个反馈循环：</span>
+    </p>
+
+    <p>
+      <span data-en><strong>Layer 3 detects → Layer 2 diagnoses → Layer 1 isolates.</strong></span>
+      <span data-zh><strong>第三层检测 → 第二层诊断 → 第一层隔离。</strong></span>
+    </p>
+
+    <p>
+      <span data-en>When operational metrics show a spike in rejection rates (L3), you replay recent traces to find which outputs are failing (L2), then drill into component metrics to identify whether it's a retrieval problem, a generation problem, or a gating misconfiguration (L1). That last category — gating — deserves special attention, because a misconfigured gate can silently route good inputs to rejection or bad inputs to production (see <a href="deterministic-gating.html">Why Deterministic Gating Matters</a> for the full four-outcome routing pattern).</span>
+      <span data-zh>当运营指标显示拒绝率飙升（L3）时，你重放最近的 trace 找出哪些输出失败（L2），然后深入组件指标以确定是检索问题、生成问题还是门控配置错误（L1）。最后一类——门控——值得特别关注，因为配置错误的门控可以悄无声息地将好输入路由到拒绝或将坏输入放行到生产环境（完整的四象限路由模式详见<a href="deterministic-gating.html">为什么确定性门控很重要</a>）。</span>
+    </p>
+
+    <p>
+      <span data-en>Going the other direction: every incident at L3 should generate new test cases at L2. Every failure pattern at L2 should inform new component assertions at L1.</span>
+      <span data-zh>反方向：L3 的每个事件应在 L2 生成新测试用例。L2 的每个失败模式应在 L1 产生新的组件断言。每一层使其他层更强。</span>
+    </p>
+
+    <h2><span data-en>The Goal</span><span data-zh>目标</span></h2>
+
+    <p>
+      <span data-en>The goal of three-layer evaluation is simple: <strong>no surprise in production.</strong> Not "no failures" — that's unrealistic with probabilistic systems. But "no surprises" — every failure mode should have been seen before in a test, or caught quickly enough by monitoring that it doesn't escalate.</span>
+      <span data-zh>三层评估的目标很简单：<strong>生产中没有意外。</strong>不是"没有失败"——对于概率性系统来说这不现实。而是"没有意外"——每种失败模式都应该在测试中被发现过，或被监控足够快地捕获而不会升级。</span>
+    </p>
+
+    <p>
+      <span data-en>Between Q2 and Q4 2024, after rolling out all three layers, P1 incidents went from 8 in June to 3 in September; P2s dropped from 14 to 5 over the same period. MTTR fell from a median of 73 minutes in Q2 to 31 minutes in Q4 — largely because Layer 2 replays could reproduce 80% of issues within the first five minutes of triage. The catalyst was a July model-provider update that silently changed output formatting in long-context windows; component tests passed, but replay caught a 9% regression in citation placement across two business lines before the change reached general traffic. That single incident justified the entire replay infrastructure.</span>
+      <span data-zh>2024 年第二季度到第四季度，三层评估全面上线后，P1 事件从 6 月的 8 次降至 9 月的 3 次；P2 事件同期从 14 次降至 5 次。MTTR 中位数从第二季度的 73 分钟降至第四季度的 31 分钟——主要因为第二层重放能在分诊前五分钟内复现 80% 的问题。转折点是 7 月一次模型供应商更新，该更新悄然改变了长上下文窗口的输出格式；组件测试全部通过，但重放在变更进入正式流量前，发现两条业务线上引用定位出现了 9% 的回归。仅这一次事件就证明了整套重放基础设施的价值。</span>
+    </p>
+
+    <div class="article-page-footer">
+      <p><span data-en>Written by Ming Zhou · 2025</span><span data-zh>作者：Ming Zhou · 2025</span></p>
+      <a href="../#writing" class="article-page-back">&larr; <span data-en>Back to all writing</span><span data-zh>返回文章列表</span></a>
+    </div>
+  </main>
+
+  <script src="../js/main.js"></script>
+</body>
+</html>

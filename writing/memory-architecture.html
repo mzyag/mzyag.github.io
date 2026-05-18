@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="en" data-lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Memory Architecture for Production Agents: Beyond the Context Window — Ming Zhou</title>
+  <meta name="description" content="How to design a layered memory system for production agents — session TTL, preference extraction, budget-aware context injection, and episode-based learning loops.">
+  <link rel="stylesheet" href="../css/style.css">
+</head>
+<body>
+
+  <nav class="nav scrolled" id="nav">
+    <div class="nav-inner">
+      <a class="nav-logo" href="../">MZ<span class="nav-logo-dot">.</span></a>
+      <div class="nav-links" id="navLinks">
+        <a href="../#projects"><span data-en>Projects</span><span data-zh>项目</span></a>
+        <a href="../#writing"><span data-en>Writing</span><span data-zh>文章</span></a>
+        <a href="../#about"><span data-en>About</span><span data-zh>关于</span></a>
+        <a href="../#contact"><span data-en>Contact</span><span data-zh>联系</span></a>
+        <button class="lang-toggle" id="langToggle" aria-label="Toggle language">
+          <span data-en>中文</span><span data-zh>EN</span>
+        </button>
+      </div>
+      <button class="nav-hamburger" id="navHamburger" aria-label="Menu">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+  </nav>
+
+  <main class="article-page">
+    <a href="../#writing" class="article-page-back">&larr; <span data-en>Back to all writing</span><span data-zh>返回文章列表</span></a>
+
+    <div class="article-page-meta">
+      <span>2025</span>
+      <span><span data-en>18 min read</span><span data-zh>18 分钟阅读</span></span>
+    </div>
+
+    <h1>
+      <span data-en>Memory Architecture for Production Agents: Beyond the Context Window</span>
+      <span data-zh>生产级 Agent 的记忆架构：超越上下文窗口</span>
+    </h1>
+
+    <p class="article-lead">
+      <span data-en>Tell your agent "always use /workspace as the project root" on Monday. By Wednesday it's asking you again. This is the goldfish problem — most agents have no memory beyond the current context window. In a demo, that's an inconvenience. In production, it's a trust destroyer. Users stop relying on the agent because they can't trust it to remember what they've already established. Here's how we designed a memory system that solves this without blowing up the token budget.</span>
+      <span data-zh>周一告诉你的 Agent "始终使用 /workspace 作为项目根目录"。到周三它又在问你。典型的"七秒记忆"——大多数 Agent 的记忆不会超出当前上下文窗口。演示时这只是小瑕疵。到了生产，这直接摧毁用户信任。用户发现 Agent 记不住已经说好的事情，就不会再依赖它。下面是我们如何设计一套记忆系统来解决这个问题，同时不撑爆 token 预算。</span>
+    </p>
+
+    <h2><span data-en>Why Sliding Windows Aren't Enough</span><span data-zh>为什么滑动窗口不够</span></h2>
+
+    <p>
+      <span data-en>The simplest memory implementation is a sliding window: keep the last N turns of conversation, drop the oldest when you exceed the limit. This is what most agent frameworks do by default, and it works for short, self-contained interactions.</span>
+      <span data-zh>最简单的记忆实现是滑动窗口：保留最近 N 轮对话，超出限制时丢弃最旧的。这是大多数 Agent 框架的默认行为，对于短的、自包含的交互有效。</span>
+    </p>
+
+    <p>
+      <span data-en>It fails in three ways:</span>
+      <span data-zh>它在三个方面失败：</span>
+    </p>
+
+    <ul>
+      <li><span data-en><strong>Preferences evaporate.</strong> A user says "reply in Chinese" in turn 3. By turn 15, that instruction has fallen out of the window. The agent switches back to English with no warning. The user has to repeat themselves — and each repetition erodes trust.</span><span data-zh><strong>偏好蒸发。</strong>用户在第 3 轮说"用中文回复"。到第 15 轮，这条指令已经滑出窗口。Agent 毫无预警地切回英文。用户不得不重复——每次重复都在侵蚀信任。</span></li>
+      <li><span data-en><strong>Context is all-or-nothing.</strong> A 20-turn conversation about refactoring the auth module either occupies 20 turns of context (expensive) or is completely forgotten (useless). There's no middle ground — no way to say "remember we discussed auth refactoring, forget the details."</span><span data-zh><strong>上下文是全有或全无的。</strong>一段关于重构认证模块的 20 轮对话要么占据 20 轮上下文（昂贵），要么完全被遗忘（无用）。没有中间地带——没有办法说"记住我们讨论过认证重构，忘记细节"。</span></li>
+      <li><span data-en><strong>No cross-session learning.</strong> The agent completes a task, the session ends, and everything learned during that task is gone. Next session, same mistakes, same clarifications, same ramp-up time.</span><span data-zh><strong>没有跨会话学习。</strong>Agent 完成一个任务，会话结束，任务期间学到的一切都消失了。下一次会话，同样的错误，同样的澄清，同样的预热时间。</span></li>
+    </ul>
+
+    <p>
+      <span data-en>The fundamental problem: <strong>not all information has the same lifetime or the same importance.</strong> A preference ("reply in Chinese") should live forever. A conversation detail ("we discussed renaming the function to processOrder") should live for hours. A task outcome ("refactoring succeeded, 8 files changed") should be compressed and archived. Treating all information the same — which a sliding window does — guarantees that you'll either waste tokens on stale details or lose critical preferences.</span>
+      <span data-zh>根本问题：<strong>不是所有信息都有相同的生命周期或相同的重要性。</strong>偏好（"用中文回复"）应该永远存在。对话细节（"我们讨论了将函数重命名为 processOrder"）应该存活几小时。任务结果（"重构成功，8 个文件更改"）应该被压缩和归档。同等对待所有信息——滑动窗口就是这样做的——保证你要么在过时细节上浪费 token，要么丢失关键偏好。</span>
+    </p>
+
+    <h2><span data-en>Three-Tier Memory Architecture</span><span data-zh>三层记忆架构</span></h2>
+
+    <p>
+      <span data-en>We designed a memory system with three tiers, each with a different storage policy, lifetime, and priority:</span>
+      <span data-zh>我们设计了一个三层记忆系统，每层有不同的存储策略、生命周期和优先级：</span>
+    </p>
+
+    <h3><span data-en>Tier 1: Conversation (Working Memory)</span><span data-zh>第一层：对话（工作记忆）</span></h3>
+
+    <p>
+      <span data-en>Recent conversation turns, stored in-memory. This is the hot path — the most recent exchanges that the agent needs for immediate context. Default window: last 6 turns.</span>
+      <span data-zh>最近的对话轮次，存储在内存中。这是热路径——Agent 需要用于即时上下文的最近交互。默认窗口：最近 6 轮。</span>
+    </p>
+
+    <p>
+      <span data-en>The critical addition: <strong>session TTL.</strong> If the user is inactive for more than one hour, the conversation window expires. But it doesn't just disappear — it gets compressed into a summary (Tier 3) before eviction. The next time the user speaks, the agent doesn't have the raw conversation, but it has a compressed digest: "Last session: we discussed refactoring ws_bot.py into 8 modules. Outcome: completed successfully."</span>
+      <span data-zh>关键新增：<strong>会话 TTL。</strong>如果用户超过一小时不活跃，对话窗口过期。但它不会直接消失——在驱逐前被压缩为摘要（第三层）。下次用户说话时，Agent 没有原始对话，但有压缩摘要："上次会话：我们讨论了将 ws_bot.py 拆分为 8 个模块。结果：成功完成。"</span>
+    </p>
+
+    <p>
+      <span data-en>Why one hour? Shorter than that, and you lose context during natural breaks (lunch, meetings). Longer, and you carry stale context that wastes tokens and confuses the agent. One hour is the sweet spot we found empirically — long enough for "I stepped away to grab coffee" but short enough that yesterday's conversation doesn't pollute today's context.</span>
+      <span data-zh>为什么是一小时？比这短，你会在自然中断（午餐、会议）期间丢失上下文。比这长，你会携带浪费 token 并混淆 Agent 的陈旧上下文。一小时是我们反复调参后找到的平衡点——"出去倒杯咖啡"回来上下文还在，但不至于把昨天的对话带进今天。</span>
+    </p>
+
+    <h3><span data-en>Tier 2: Persistent Memory (Long-Term)</span><span data-zh>第二层：持久记忆（长期）</span></h3>
+
+    <p>
+      <span data-en>Persistent facts extracted from conversations. These survive session resets, process restarts, and explicit <code>/reset</code> commands. When a user says "clear my chat history," they mean the conversation — not "forget what you've learned about how I work."</span>
+      <span data-zh>从对话中提取的持久事实。它们在会话重置、进程重启和显式 <code>/reset</code> 命令后保留。当用户说"清除我的聊天记录"时，他们指的是对话——不是"忘记你了解的我的工作方式"。</span>
+    </p>
+
+    <p>
+      <span data-en>Extraction is signal-based: explicit cues ("always," "from now on," "remember this") and implicit cues (corrections, role disclosures, resource mentions) trigger persistent memory writes. But not all persistent memories are the same — we discovered early that lumping everything into a single "preferences" bucket creates retrieval, staleness, and conflict problems. The solution is a <strong>four-dimension content taxonomy</strong>, covered in the next section.</span>
+      <span data-zh>提取是基于信号的：显式线索（"始终"、"从现在开始"、"记住这个"）和隐式线索（纠正、角色透露、资源提及）触发持久记忆写入。但并非所有持久记忆都一样——我们很早就发现把一切塞进单一的"偏好"桶会导致检索、过期和冲突问题。解决方案是<strong>四维度内容分类</strong>，在下一节详述。</span>
+    </p>
+
+    <p>
+      <span data-en>Persistent memories are <strong>never auto-trimmed.</strong> They're the highest-priority memory tier. If the token budget forces a choice between keeping a persistent memory and keeping a conversation turn, the conversation turn goes. Persistent memories win the budget fight every time — they're reusable knowledge, not ephemeral details. If something has to go, it's the conversation turn.</span>
+      <span data-zh>持久记忆<strong>永不自动裁剪。</strong>它们是最高优先级的记忆层。如果 token 预算迫使在保留持久记忆和保留对话轮次之间选择，对话轮次被丢弃。这是关键洞察：<strong>持久记忆的每 token 价值高于对话历史</strong>，因为它们编码可复用的知识而非短暂的细节。</span>
+    </p>
+
+    <h3><span data-en>Tier 3: Summaries (Compressed Memory)</span><span data-zh>第三层：摘要（压缩记忆）</span></h3>
+
+    <p>
+      <span data-en>When a conversation window expires (TTL hit), the raw turns are compressed into a one-paragraph summary. We keep the most recent 10 summaries. This gives the agent a "notebook" of past work — enough to say "we've worked on this before" without carrying the full transcript.</span>
+      <span data-zh>当对话窗口过期（TTL 触发）时，原始轮次被压缩为一段摘要。我们保留最近 10 条摘要。这给 Agent 一个过去工作的"笔记本"——足以说"我们以前处理过这个"而不携带完整记录。</span>
+    </p>
+
+    <p>
+      <span data-en>Compression can be LLM-powered ("summarize this conversation in 2 sentences focusing on decisions made and outcomes") or, when LLM summarization is unavailable, a simple truncation fallback that keeps the first and last turn plus any turns containing keywords like "decided," "confirmed," "completed."</span>
+      <span data-zh>压缩可以由 LLM 驱动（"用 2 句话总结这段对话，聚焦于做出的决策和结果"），或者当 LLM 总结不可用时，使用简单的截断降级——保留第一轮和最后一轮，加上包含"决定"、"确认"、"完成"等关键词的轮次。</span>
+    </p>
+
+    <h2><span data-en>Content Taxonomy: Four Dimensions of Persistent Memory</span><span data-zh>内容分类：持久记忆的四个维度</span></h2>
+
+    <p>
+      <span data-en>The three tiers describe <em>when</em> memory lives and dies. But "preferences" as a single category for all long-term memory is too coarse. In production, we found that persistent memories differ not just in lifetime but in <em>what kind of knowledge</em> they encode. We identified four dimensions, each with different storage patterns, update triggers, and retrieval priorities:</span>
+      <span data-zh>三层架构描述了记忆<em>何时</em>生存和消亡。但把所有长期记忆归为"偏好"这个单一类别太粗了。在生产中，我们发现持久记忆的差异不仅在生命周期，还在于它们编码的<em>知识类型</em>。我们识别出四个维度，每个都有不同的存储模式、更新触发和检索优先级：</span>
+    </p>
+
+    <h3><span data-en>Dimension 1: User — Who Am I Talking To?</span><span data-zh>维度一：User — 我在和谁对话？</span></h3>
+
+    <p>
+      <span data-en>Role, expertise level, responsibilities, and domain knowledge. A senior distributed systems engineer asking "explain this retry logic" wants a different answer than an intern asking the same question. Without user memory, the agent defaults to the same generic explanation every time.</span>
+      <span data-zh>角色、专业水平、职责和领域知识。一个资深分布式系统工程师问"解释这段重试逻辑"和实习生问同样的问题，需要不同的回答。没有 User 记忆，Agent 每次都给出同样的通用解释。</span>
+    </p>
+
+    <p>
+      <span data-en><strong>When to save:</strong> When the user reveals their role ("I'm a data scientist"), expertise ("I've been writing Go for ten years but this is my first time with React"), or responsibility ("I own the payment service"). <strong>How it changes behavior:</strong> The agent adapts explanation depth, assumes domain knowledge where appropriate, and frames recommendations in terms the user already understands. A backend engineer gets architecture analogies; a product manager gets impact framing.</span>
+      <span data-zh><strong>何时保存：</strong>当用户透露角色（"我是数据科学家"）、专业度（"我写了十年 Go 但第一次接触 React"）或职责（"我负责支付服务"）时。<strong>如何影响行为：</strong>Agent 调整解释深度，在适当时假设领域知识，用用户已理解的术语组织建议。后端工程师得到架构类比；产品经理得到影响力框架。</span>
+    </p>
+
+    <pre><code>{
+  "type": "user",
+  "content": "Senior backend engineer, deep Go expertise, new to React",
+  "source": "user message at 2025-03-15T09:10:00"
+}</code></pre>
+
+    <h3><span data-en>Dimension 2: Feedback — What Should I Do Differently?</span><span data-zh>维度二：Feedback — 我应该怎么调整？</span></h3>
+
+    <p>
+      <span data-en>Corrections the user has made and approaches they've validated. This is the most important dimension for avoiding repeated mistakes. If a user says "don't mock the database in these tests — we got burned last quarter when mocked tests passed but the prod migration failed," that's a feedback memory. But equally important: if the user confirms "yes, the single bundled PR was the right call here," that's also feedback — a validated approach worth repeating.</span>
+      <span data-zh>用户做过的纠正和验证过的方法。这是避免重复犯错最重要的维度。如果用户说"这些测试不要 mock 数据库——上季度 mock 测试通过了但生产迁移失败了"，这是 Feedback 记忆。同样重要的是：如果用户确认"没错，这次合成一个 PR 是对的"，这也是 Feedback——一个值得重复的已验证方法。</span>
+    </p>
+
+    <p>
+      <span data-en><strong>When to save:</strong> Any time the user corrects your approach ("no, not that way") OR confirms a non-obvious approach worked. Corrections are easy to notice; confirmations are quieter — you have to watch for them. <strong>Key design decision:</strong> Each feedback record stores the rule, the <em>why</em> behind it, and <em>when to apply it</em>. Without the why, the agent follows rules blindly and can't judge edge cases.</span>
+      <span data-zh><strong>何时保存：</strong>用户纠正方法时（"不，别这样做"）或确认非显而易见的方法有效时。纠正容易注意到；确认更安静——你得主动去捕捉。<strong>关键设计决策：</strong>每条 Feedback 记录存储规则、背后的<em>原因</em>和<em>何时应用</em>。没有原因，Agent 会盲目遵循规则而无法判断边界情况。</span>
+    </p>
+
+    <pre><code>{
+  "type": "feedback",
+  "content": "Integration tests must hit a real database, not mocks",
+  "why": "Prior incident: mock/prod divergence masked a broken migration",
+  "apply_when": "Writing or reviewing test code for database-dependent features",
+  "source": "user correction at 2025-03-18T14:30:00"
+}</code></pre>
+
+    <h3><span data-en>Dimension 3: Project — What's Happening Right Now?</span><span data-zh>维度三：Project — 现在在发生什么？</span></h3>
+
+    <p>
+      <span data-en>Ongoing work, goals, decisions, deadlines, and context that isn't derivable from the codebase alone. A git log tells you <em>what</em> changed. Project memory tells you <em>why</em> it changed and <em>what's coming next</em>. "We're freezing all non-critical merges after Thursday — mobile team is cutting a release branch" is a project memory. So is "the auth middleware rewrite is driven by legal compliance requirements, not tech debt."</span>
+      <span data-zh>正在进行的工作、目标、决策、截止日期和仅从代码库无法推导的上下文。Git log 告诉你<em>什么</em>改了。Project 记忆告诉你<em>为什么</em>改了和<em>接下来要做什么</em>。"周四之后冻结所有非关键合并——移动端团队要切发布分支"是 Project 记忆。"认证中间件重写是因为法规合规要求，不是技术债"也是。</span>
+    </p>
+
+    <p>
+      <span data-en><strong>When to save:</strong> When you learn who is doing what, why, or by when. <strong>Critical rule:</strong> Always convert relative dates to absolute dates when saving. "Next Thursday" becomes "2025-03-20." Otherwise the memory becomes uninterpretable after a week. <strong>Decay rate:</strong> Project memories go stale faster than any other type. A merge freeze from three weeks ago is probably over. The agent should treat project memories as context for what <em>was</em> true, and verify against current state before acting on them.</span>
+      <span data-zh><strong>何时保存：</strong>了解到谁在做什么、为什么、什么时候截止时。<strong>关键规则：</strong>保存时始终将相对日期转换为绝对日期。"下周四"变成"2025-03-20"。否则一周后记忆就无法解读了。<strong>衰减率：</strong>Project 记忆比其他任何类型都更快过期。三周前的合并冻结可能已经结束了。Agent 应将 Project 记忆视为<em>当时</em>为真的上下文，在据此行动前验证当前状态。</span>
+    </p>
+
+    <h3><span data-en>Dimension 4: Reference — Where Do I Look?</span><span data-zh>维度四：Reference — 去哪里找？</span></h3>
+
+    <p>
+      <span data-en>Pointers to where information lives in external systems. Not the information itself — just the address. "Pipeline bugs are tracked in Linear project INGEST." "The oncall latency dashboard is at grafana.internal/d/api-latency." "Design docs live in Notion under /engineering/design-docs." The agent doesn't need to memorize the dashboard — it needs to know where to point the user when the topic comes up.</span>
+      <span data-zh>指向信息在外部系统中位置的指针。不是信息本身——只是地址。"流水线 Bug 在 Linear 项目 INGEST 中追踪。""值班延迟仪表盘在 grafana.internal/d/api-latency。""设计文档在 Notion 的 /engineering/design-docs 下。"Agent 不需要记住仪表盘的内容——它需要知道话题出现时该把用户指向哪里。</span>
+    </p>
+
+    <p>
+      <span data-en><strong>When to save:</strong> When you learn about a resource's location and purpose. <strong>Design principle:</strong> Reference memories are compact and high-signal. They rarely conflict, rarely go stale (URLs change less often than project state), and provide outsized value relative to their token cost. A 50-character reference memory that saves the user from asking "where do I find the deployment runbook?" pays for itself immediately.</span>
+      <span data-zh><strong>何时保存：</strong>了解到资源的位置和用途时。<strong>设计原则：</strong>Reference 记忆紧凑且高信号。它们很少冲突，很少过期（URL 比项目状态变化更少），且相对 token 成本提供超额价值。一条 50 字符的 Reference 记忆如果能让用户免于问"部署手册在哪里？"，立刻就值回了代价。</span>
+    </p>
+
+    <h3><span data-en>Why Four Dimensions, Not One</span><span data-zh>为什么是四个维度，而不是一个</span></h3>
+
+    <p>
+      <span data-en>Treating all persistent memory as "preferences" causes three problems. First, <strong>retrieval priority becomes flat</strong> — a user correction about test strategy competes equally with a Notion URL for context budget, when the correction is clearly more important during a code review. Second, <strong>staleness detection is one-size-fits-all</strong> — a project deadline from three weeks ago should be treated with suspicion, but a user's role hasn't changed. Third, <strong>conflict resolution has no semantics</strong> — two feedback memories can conflict ("use mocks" vs. "don't use mocks"), but a feedback memory and a reference memory never do.</span>
+      <span data-zh>将所有持久记忆当作"偏好"会导致三个问题。第一，<strong>检索优先级变得扁平</strong>——关于测试策略的用户纠正与一个 Notion URL 平等竞争上下文预算，但在代码审查时纠正明显更重要。第二，<strong>过期检测一刀切</strong>——三周前的项目截止日期应该被怀疑，但用户的角色没变过。第三，<strong>冲突解决没有语义</strong>——两条 Feedback 记忆可能冲突（"用 mock" vs "不要用 mock"），但 Feedback 记忆和 Reference 记忆永远不会。</span>
+    </p>
+
+    <p>
+      <span data-en>The four dimensions give the memory system structured metadata to make better decisions about what to inject, what to verify, and what to discard — without requiring LLM reasoning at the memory layer.</span>
+      <span data-zh>四个维度给记忆系统提供了结构化元数据，使其能更好地决定注入什么、验证什么、丢弃什么——而不需要在记忆层引入 LLM 推理。</span>
+    </p>
+
+    <h2><span data-en>Budget-Aware Context Injection</span><span data-zh>预算感知的上下文注入</span></h2>
+
+    <p>
+      <span data-en>All three tiers combine into a single context block that's injected into the system prompt. But context isn't free — every character of memory competes with the user's actual message for context window space. So the injection is budget-constrained.</span>
+      <span data-zh>三层合并为单一上下文块，注入系统提示。但上下文不是免费的——记忆的每个字符都与用户的实际消息竞争上下文窗口空间。因此注入是受预算约束的。</span>
+    </p>
+
+    <p>
+      <span data-en>Default budget: 4000 characters. The assembly priority:</span>
+      <span data-zh>默认预算：4000 字符。组装优先级：</span>
+    </p>
+
+    <ol>
+      <li><span data-en><strong>Feedback memories</strong> — Always included first. These encode hard-won corrections and validated approaches. Missing a feedback memory means repeating a mistake the user already told you about — the fastest way to destroy trust.</span><span data-zh><strong>Feedback 记忆</strong>——始终最先包含。它们编码来之不易的纠正和已验证的方法。遗漏 Feedback 记忆意味着重复用户已经告诉你的错误——最快的摧毁信任方式。</span></li>
+      <li><span data-en><strong>User memories</strong> — Included next. Role and expertise context is compact and shapes every response. Usually under 200 chars total.</span><span data-zh><strong>User 记忆</strong>——其次包含。角色和专业度上下文紧凑且影响每一个回复。通常总共不超过 200 字符。</span></li>
+      <li><span data-en><strong>Project memories</strong> — Included if budget allows, most recent first. These provide situational context but go stale, so they're lower priority than user and feedback.</span><span data-zh><strong>Project 记忆</strong>——预算允许时包含，最近的优先。它们提供情境上下文但会过期，因此优先级低于 User 和 Feedback。</span></li>
+      <li><span data-en><strong>Reference memories</strong> — Included if budget remains. These are compact pointers that add value when relevant but aren't critical for every turn.</span><span data-zh><strong>Reference 记忆</strong>——剩余预算时包含。它们是紧凑的指针，相关时有价值但不是每轮都关键。</span></li>
+      <li><span data-en><strong>Conversation</strong> — Included from most recent to oldest. If the budget runs out mid-conversation, older turns are dropped.</span><span data-zh><strong>对话</strong>——从最近到最旧包含。如果预算在对话中途用完，较旧的轮次被丢弃。</span></li>
+      <li><span data-en><strong>Summaries</strong> — Included from most recent, only if budget remains after all above.</span><span data-zh><strong>摘要</strong>——从最近的开始包含，仅在上述全部之后预算仍有剩余时。</span></li>
+    </ol>
+
+    <p>
+      <span data-en>The LLM never sees the memory machinery. It receives a well-formatted context block that reads like a briefing document: "User preferences: Chinese responses, project root /workspace. Recent context: discussed auth refactoring, completed successfully. Current conversation: [last 6 turns]." The memory system is invisible infrastructure.</span>
+      <span data-zh>LLM 永远看不到记忆机制。它接收一个格式良好的上下文块，读起来像简报文档："用户偏好：中文回复，项目根目录 /workspace。近期上下文：讨论了认证重构，成功完成。当前对话：[最近 6 轮]。"记忆系统是不可见的基础设施。</span>
+    </p>
+
+    <h2><span data-en>Episode Logging: The Agent's Work Journal</span><span data-zh>Episode 日志：Agent 的工作日志</span></h2>
+
+    <p>
+      <span data-en>Beyond the three tiers, we added a fourth data layer that doesn't feed into prompts: <strong>episode logs.</strong> Every completed task — whether a single-turn answer or a multi-step refactor — produces a structured record:</span>
+      <span data-zh>在三层之外，我们增加了第四个不注入提示词的数据层：<strong>episode 日志。</strong>每个完成的任务——无论是单轮回答还是多步骤重构——都产生一条结构化记录：</span>
+    </p>
+
+    <pre><code>{
+  "task_type": "team",
+  "description": "Refactor ws_bot.py into 8 modules",
+  "duration_sec": 420,
+  "steps_planned": 5,
+  "steps_completed": 5,
+  "outcome": "success",
+  "files_changed": ["config.py", "state.py", "feishu_api.py", ...],
+  "timestamp": "2025-03-15T10:45:00"
+}</code></pre>
+
+    <p>
+      <span data-en>Episodes don't affect the agent's behavior directly. They exist for <strong>offline analysis</strong>:</span>
+      <span data-zh>Episode 不直接影响 Agent 的行为。它们存在于<strong>离线分析</strong>：</span>
+    </p>
+
+    <ul>
+      <li><span data-en><strong>Failure pattern detection</strong> — Which task types fail most? Are failures concentrated in specific domains or time windows?</span><span data-zh><strong>失败模式检测</strong>——哪类任务失败最多？失败是否集中在特定领域或时间窗口？</span></li>
+      <li><span data-en><strong>Duration benchmarking</strong> — How long do refactors typically take? Is the agent getting faster over time as system prompts improve?</span><span data-zh><strong>时长基准</strong>——重构通常需要多长时间？随着系统提示改进，Agent 是否在变快？</span></li>
+      <li><span data-en><strong>Step efficiency</strong> — What's the ratio of planned steps to completed steps? A consistently high ratio might indicate over-planning.</span><span data-zh><strong>步骤效率</strong>——计划步骤与完成步骤的比率是多少？持续偏高可能表明过度规划。</span></li>
+      <li><span data-en><strong>Reflection candidates</strong> — Failed episodes with clear root causes become candidates for system prompt improvements or new harness rules.</span><span data-zh><strong>反思候选</strong>——有明确根因的失败 episode 成为系统提示改进或新 harness 规则的候选。</span></li>
+    </ul>
+
+    <p>
+      <span data-en>Episodes don't feed into prompts — injecting raw episode data would blow the token budget for marginal value. But they're the foundation for something more important: <strong>closing the self-improvement loop.</strong> These episode metrics also feed directly into the operational evaluation layer — the third layer in a three-tier evaluation system that catches drift, regressions, and silent failures that component tests miss (described in <a href="three-layers-evaluation.html">Three Layers of Evaluation</a>).</span>
+      <span data-zh>Episode 不注入提示词——注入原始 episode 数据会为边际价值撑爆 token 预算。但它们是更重要的事情的基础：<strong>闭合自改进循环。</strong>这些 episode 指标也直接输入到运营级评估层——一个三层评估体系中的第三层，用于捕获组件测试遗漏的漂移、回归和静默故障（详见<a href="three-layers-evaluation.html">三层评估体系</a>）。</span>
+    </p>
+
+    <h2><span data-en>Closing the Loop: From Episodes to Self-Improvement</span><span data-zh>闭合循环：从 Episode 到自改进</span></h2>
+
+    <p>
+      <span data-en>Most agent teams improve their system through gut feeling: "The agent seems worse at code reviews lately, let's tweak the prompt." Episode logs replace this with an evidence-driven pipeline. The loop has four stages:</span>
+      <span data-zh>大多数 Agent 团队通过直觉改进系统："Agent 最近代码审查似乎变差了，我们调一下 prompt。"Episode 日志用证据驱动的流水线替代了这种方式。循环有四个阶段：</span>
+    </p>
+
+    <h3><span data-en>Stage 1: Pattern Detection</span><span data-zh>阶段一：模式检测</span></h3>
+
+    <p>
+      <span data-en>A nightly batch job aggregates episodes from the past 7 days and computes metrics per task type: success rate, average duration, step efficiency (planned vs. completed), and user correction rate (how often the user had to intervene mid-task). The output is a dashboard row, not a neural network — we're looking for trends, not training a model.</span>
+      <span data-zh>每晚批处理任务聚合过去 7 天的 episode 并按任务类型计算指标：成功率、平均时长、步骤效率（计划 vs. 完成）和用户纠正率（用户在任务中途介入的频率）。输出是仪表盘的一行，不是神经网络——我们在找趋势，不是训练模型。</span>
+    </p>
+
+    <p>
+      <span data-en>The signals we watch:</span>
+      <span data-zh>我们关注的信号：</span>
+    </p>
+
+    <ul>
+      <li><span data-en><strong>Success rate drop by task type.</strong> If "code refactoring" success rate drops from 85% to 60% over a week, something changed — a new codebase pattern, a model update, or a prompt regression.</span><span data-zh><strong>按任务类型的成功率下降。</strong>如果"代码重构"成功率一周内从 85% 降到 60%，说明有什么变了——新的代码库模式、模型更新或 prompt 回退。</span></li>
+      <li><span data-en><strong>Duration outliers.</strong> A task type that normally takes 3 minutes suddenly averaging 12 minutes suggests the agent is stuck in retry loops or generating excessive intermediate steps.</span><span data-zh><strong>时长异常值。</strong>正常 3 分钟的任务类型突然平均 12 分钟，说明 Agent 可能陷入重试循环或生成了过多中间步骤。</span></li>
+      <li><span data-en><strong>Correction clustering.</strong> If users consistently correct the agent on the same topic (e.g., "stop adding type annotations to Python 3.8 code"), that's a missing feedback memory or a prompt gap — not a one-off mistake.</span><span data-zh><strong>纠正聚集。</strong>如果用户在同一话题上反复纠正 Agent（如"别给 Python 3.8 代码加类型注解"），这是缺失的 Feedback 记忆或 prompt 缺口——不是一次性错误。</span></li>
+      <li><span data-en><strong>Feedback-to-episode correlation.</strong> When a new feedback memory is saved, do subsequent episodes of the same type improve? If not, the feedback isn't being applied effectively — either the injection priority is wrong or the feedback is too vague for the LLM to act on.</span><span data-zh><strong>Feedback 与 episode 的关联。</strong>当新的 Feedback 记忆被保存后，同类型的后续 episode 是否改善？如果没有，说明 Feedback 没有被有效应用——要么注入优先级有问题，要么 Feedback 太模糊 LLM 无法执行。</span></li>
+    </ul>
+
+    <h3><span data-en>Stage 2: Root Cause Analysis</span><span data-zh>阶段二：根因分析</span></h3>
+
+    <p>
+      <span data-en>When a pattern is detected, the next step is <em>not</em> "tweak the prompt." It's "understand why." We pull the failed episodes, read the conversation traces, and classify the root cause:</span>
+      <span data-zh>当检测到模式时，下一步<em>不是</em>"调 prompt"。而是"理解为什么"。我们拉出失败 episode，阅读对话追踪，分类根因：</span>
+    </p>
+
+    <ul>
+      <li><span data-en><strong>Knowledge gap</strong> — The agent doesn't know something it should. Fix: add to system prompt or create a reference memory.</span><span data-zh><strong>知识缺口</strong>——Agent 不知道它应该知道的事。修复：添加到系统提示或创建 Reference 记忆。</span></li>
+      <li><span data-en><strong>Instruction ambiguity</strong> — The prompt says "write clean code" but doesn't define what clean means in this codebase. Fix: make the instruction concrete ("functions under 30 lines, no nested callbacks deeper than 2 levels").</span><span data-zh><strong>指令模糊</strong>——Prompt 说"写干净的代码"但没定义在这个代码库中什么是干净。修复：让指令具体化（"函数 30 行以内，回调嵌套不超过 2 层"）。</span></li>
+      <li><span data-en><strong>Context starvation</strong> — The agent needed information that was evicted from the context window. Fix: adjust budget allocation or promote the information to a higher-priority memory dimension.</span><span data-zh><strong>上下文饥饿</strong>——Agent 需要的信息被从上下文窗口驱逐了。修复：调整预算分配或将信息提升到更高优先级的记忆维度。</span></li>
+      <li><span data-en><strong>Capability limit</strong> — The task is genuinely beyond the model's ability. Fix: add a harness gate that detects this task pattern and escalates to a human instead of letting the agent flail.</span><span data-zh><strong>能力极限</strong>——任务确实超出模型能力。修复：添加 Harness 门控检测此任务模式并升级给人类，而不是让 Agent 挣扎。</span></li>
+    </ul>
+
+    <p>
+      <span data-en>This step is deliberately human-driven. Automating root cause analysis sounds appealing until you realize it's the step where bad judgment compounds — an incorrect root cause leads to a wrong fix that makes the agent worse. We tried LLM-assisted root cause classification early on. It was right 70% of the time, which sounds acceptable until you realize the 30% wrong fixes silently degraded the system for weeks before someone noticed.</span>
+      <span data-zh>这一步是刻意由人驱动的。自动化根因分析听起来很诱人，直到你意识到这是错误判断会复利的环节——错误的根因导致错误的修复，让 Agent 变得更差。我们早期尝试过 LLM 辅助的根因分类。70% 的时间是对的，听起来可以接受，直到你意识到那 30% 的错误修复悄悄降低了系统质量好几周才被人发现。</span>
+    </p>
+
+    <h3><span data-en>Stage 3: Targeted Intervention</span><span data-zh>阶段三：针对性干预</span></h3>
+
+    <p>
+      <span data-en>Based on the root cause, we apply the minimum effective change. The intervention types, ordered by preference:</span>
+      <span data-zh>基于根因，我们应用最小有效变更。干预类型按优先级排序：</span>
+    </p>
+
+    <ol>
+      <li><span data-en><strong>Add or update a memory.</strong> A new feedback memory ("when refactoring Python files, preserve existing import ordering unless explicitly asked to change it") is the lightest intervention. It's per-user, instantly effective, and doesn't require a system-wide change. Most corrections land here.</span><span data-zh><strong>添加或更新记忆。</strong>一条新 Feedback 记忆（"重构 Python 文件时保留现有 import 顺序，除非被明确要求更改"）是最轻量的干预。它是按用户的、立即生效的，不需要全系统变更。大多数纠正落在这里。</span></li>
+      <li><span data-en><strong>Update the system prompt.</strong> When the same correction appears across multiple users, it graduates from individual feedback memory to a system prompt rule. "Always run the existing test suite before declaring a refactor complete" started as one user's feedback, then appeared independently from three other users within a week. That's a systemic gap, not a personal preference.</span><span data-zh><strong>更新系统提示。</strong>当同一纠正出现在多个用户时，它从个人 Feedback 记忆升级为系统提示规则。"在宣布重构完成前始终运行现有测试套件"最初是一个用户的 Feedback，然后一周内从另外三个用户独立出现。这是系统性缺口，不是个人偏好。</span></li>
+      <li><span data-en><strong>Add a harness gate.</strong> If the agent consistently fails at a task pattern and the failure has high consequences, add a deterministic check. Example: after three incidents where the agent deleted test files during "cleanup" tasks, we added a gate that blocks file deletion in test directories without explicit user confirmation.</span><span data-zh><strong>添加 Harness 门控。</strong>如果 Agent 在某个任务模式上持续失败且后果严重，添加确定性检查。例子：Agent 在"清理"任务中删除测试文件发生三次后，我们添加了一个门控——在没有用户明确确认的情况下阻止删除测试目录中的文件。</span></li>
+      <li><span data-en><strong>Adjust the task routing.</strong> Some task types should be reclassified. If "database migration generation" has a 40% success rate despite prompt improvements, maybe it shouldn't be a fully autonomous task — route it to a human-in-the-loop mode where the agent generates a draft and a human reviews before execution.</span><span data-zh><strong>调整任务路由。</strong>某些任务类型应该被重新分类。如果"数据库迁移生成"在 prompt 改进后仍然只有 40% 成功率，也许它不应该是完全自主的任务——将其路由到人在环路模式，Agent 生成草稿，人类审查后再执行。</span></li>
+    </ol>
+
+    <h3><span data-en>Stage 4: Validation and Rollback</span><span data-zh>阶段四：验证与回滚</span></h3>
+
+    <p>
+      <span data-en>Every intervention is treated like a code deploy: change one thing, measure the effect, keep or revert. We maintain a changelog of prompt modifications and memory policy changes, each tagged with the episode pattern that triggered it and the expected metric improvement.</span>
+      <span data-zh>每次干预都像代码部署一样对待：改一件事，衡量效果，保留或回滚。我们维护 prompt 修改和记忆策略变更的变更日志，每条标注触发它的 episode 模式和预期的指标改善。</span>
+    </p>
+
+    <p>
+      <span data-en>Validation window: 7 days of episodes post-change. We compare the target metric (e.g., refactoring success rate) against the baseline from the 7 days before the change. If the metric improved, the change stays. If it didn't move or got worse, we revert and re-analyze. <strong>No change without measurement, no measurement without a revert plan.</strong></span>
+      <span data-zh>验证窗口：变更后 7 天的 episode。我们将目标指标（如重构成功率）与变更前 7 天的基线对比。如果指标改善，保留变更。如果没有变化或变差，回滚并重新分析。<strong>没有度量就没有变更，没有回滚方案就没有度量。</strong></span>
+    </p>
+
+    <p>
+      <span data-en>Self-improvement is not autonomous. This is deliberate. The agent doesn't modify its own prompts. Humans analyze the data, decide what to change, make the change, and measure the result. The agent's contribution is generating structured, honest data about its own performance. Autonomous self-modification sounds powerful, but in a production system where the agent handles real user work, an unvalidated prompt change can silently degrade quality for days. We keep the human in the improvement loop for the same reason we keep the human in the execution loop — because the cost of an undetected bad change is much higher than the cost of a human review.</span>
+      <span data-zh>关键洞察：<strong>自改进不是自主的。</strong>Agent 不修改自己的 prompt。人类分析数据、决定改什么、做出变更、衡量结果。Agent 的贡献是生成关于自身表现的结构化、诚实的数据。自主自修改听起来强大，但在处理真实用户工作的生产系统中，一次未验证的 prompt 变更可以悄悄降低质量好几天。我们在改进循环中保持人类参与，原因和在执行循环中保持人类参与一样——因为未被发现的坏变更的代价远高于人类审查的代价。</span>
+    </p>
+
+    <h3><span data-en>What the Loop Looks Like in Practice</span><span data-zh>循环在实践中的样子</span></h3>
+
+    <p>
+      <span data-en>A concrete example from our system: episode logs showed that "multi-file refactoring" tasks had a 65% success rate, with most failures caused by the agent missing import updates in dependent files. The root cause was instruction ambiguity — the system prompt said "refactor the target file" but didn't mention transitive dependencies. The fix: a single sentence added to the system prompt — "After modifying a file, check all files that import from it and update references accordingly." Post-change, multi-file refactoring success rate went to 88% within a week. The episode data told us <em>what</em> was failing, the traces told us <em>why</em>, and the 7-day comparison told us the fix <em>worked</em>.</span>
+      <span data-zh>我们系统中的一个具体例子：episode 日志显示"多文件重构"任务成功率 65%，多数失败是因为 Agent 遗漏了依赖文件中的 import 更新。根因是指令模糊——系统提示说"重构目标文件"但没提传递依赖。修复：在系统提示中加一句——"修改文件后，检查所有从它导入的文件并相应更新引用。"变更后一周内，多文件重构成功率升至 88%。Episode 数据告诉我们<em>什么</em>在失败，追踪告诉我们<em>为什么</em>，7 天对比告诉我们修复<em>有效</em>。</span>
+    </p>
+
+    <p>
+      <span data-en>Without episode logging, this improvement would have been anecdotal ("I feel like refactors work better now"). With it, the improvement is quantified, attributed, and reversible. That's the difference between engineering and tinkering.</span>
+      <span data-zh>没有 episode 日志，这个改进只是轶事（"我感觉重构现在好多了"）。有了它，改进是量化的、可归因的、可逆的。这就是工程和修补之间的区别。</span>
+    </p>
+
+    <h2><span data-en>Failure Modes We've Encountered</span><span data-zh>我们遇到的失败模式</span></h2>
+
+    <h3><span data-en>Intra-Dimension Conflicts</span><span data-zh>维度内冲突</span></h3>
+    <p>
+      <span data-en>Week 1: a feedback memory says "always use mocks for external API calls." Week 3: another feedback memory says "don't mock the database — hit the real instance." Do these conflict? They sound contradictory, but they're about different targets (external APIs vs. database). Without the four-dimension taxonomy, both would land in a flat "preferences" store and the conflict detection would need semantic reasoning. With dimensions, we know both are feedback, and we can apply type-specific conflict rules: <strong>feedback memories conflict only when they address the same action in the same scope.</strong> The "why" field helps — if the reasons are about different concerns (network reliability vs. migration safety), they don't conflict.</span>
+      <span data-zh>第 1 周：一条 Feedback 记忆说"外部 API 调用始终用 mock"。第 3 周：另一条 Feedback 记忆说"不要 mock 数据库——用真实实例"。它们冲突吗？听起来矛盾，但目标不同（外部 API vs. 数据库）。没有四维度分类，两者会落入扁平的"偏好"存储中，冲突检测需要语义推理。有了维度，我们知道两者都是 Feedback，可以应用类型特定的冲突规则：<strong>Feedback 记忆仅在涉及相同范围内的相同操作时才冲突。</strong>"Why"字段有帮助——如果原因涉及不同关注点（网络可靠性 vs. 迁移安全性），则不冲突。</span>
+    </p>
+    <p>
+      <span data-en>For genuinely conflicting memories within the same dimension, the rule is simple: <strong>latest timestamp wins.</strong> But we only apply this after confirming the scope overlap. This keeps the conflict resolution deterministic and avoidable by the agent without an extra LLM call.</span>
+      <span data-zh>对于同一维度内真正冲突的记忆，规则简单：<strong>最新时间戳胜出。</strong>但我们只在确认范围重叠后才应用此规则。这使冲突解决保持确定性，Agent 无需额外 LLM 调用即可处理。</span>
+    </p>
+
+    <h3><span data-en>Summary Drift</span><span data-zh>摘要漂移</span></h3>
+    <p>
+      <span data-en>LLM-generated summaries sometimes emphasize the wrong things. A conversation about "refactoring auth with a focus on JWT token rotation" might get summarized as "discussed security improvements" — losing the specific technical detail that would be most useful in a future session. Our mitigation: the summary prompt explicitly asks for "decisions made, tools used, and specific outcomes," not general themes. Structured prompting produces structured summaries.</span>
+      <span data-zh>LLM 生成的摘要有时会强调错误的事情。一段关于"重构认证，聚焦 JWT token 轮换"的对话可能被总结为"讨论了安全改进"——丢失了在未来会话中最有用的具体技术细节。我们的缓解：摘要提示明确要求"做出的决策、使用的工具和具体结果"，而非一般性主题。结构化提示产生结构化摘要。</span>
+    </p>
+
+    <h3><span data-en>Token Budget Starvation</span><span data-zh>Token 预算饥饿</span></h3>
+    <p>
+      <span data-en>Early on, we set the budget too low (2000 chars). Result: after preferences and 2-3 conversation turns, there was no room left for summaries. The agent had good short-term memory and good preference recall, but zero awareness of past sessions. We doubled the budget to 4000 chars. The extra 2000 chars go almost entirely to summaries, which dramatically improved the "we discussed this last week" experience. The cost: slightly longer system prompts. The benefit: users stopped repeating themselves across sessions.</span>
+      <span data-zh>早期我们把预算设得太低（2000 字符）。结果：在偏好和 2-3 轮对话之后，摘要没有空间了。Agent 有良好的短期记忆和偏好召回，但对过去会话零感知。我们将预算翻倍到 4000 字符。额外的 2000 字符几乎全部给了摘要，这极大改善了"我们上周讨论过这个"的体验。代价：略长的系统提示。收益：用户不再跨会话重复自己。</span>
+    </p>
+
+    <h2><span data-en>Storage Design</span><span data-zh>存储设计</span></h2>
+
+    <p>
+      <span data-en>Each user gets a directory on disk:</span>
+      <span data-zh>每个用户在磁盘上有一个目录：</span>
+    </p>
+
+    <pre><code>.state/memory/{user_id}/
+├── conversation.json   # sliding window (hot, in-memory + periodic flush)
+├── user.json           # role, expertise, context (write-through)
+├── feedback.json       # corrections + validated approaches (write-through)
+├── project.json        # ongoing work, deadlines, decisions (write-through)
+├── reference.json      # pointers to external resources (write-through)
+├── summaries.json      # compressed past sessions (append-only)
+└── episodes.json       # task completion records (append-only)</code></pre>
+
+    <p>
+      <span data-en>All writes use atomic rename (<code>write to .tmp, then rename</code>) to prevent corruption on crash. The conversation tier is primarily in-memory with periodic flushes; the four persistent dimensions and summaries are write-through. On process restart, the system loads all files and resumes with full memory intact. Splitting persistent memory into four files instead of one monolithic <code>preferences.json</code> also makes manual inspection trivial — <code>cat feedback.json</code> shows exactly what the agent has learned from corrections, without scrolling past user profile data and project deadlines.</span>
+      <span data-zh>所有写入使用原子重命名（<code>写入 .tmp，然后 rename</code>）以防止崩溃时损坏。对话层主要在内存中，定期刷新；四个持久维度和摘要是写穿的。进程重启时，系统加载所有文件，完整记忆恢复运行。将持久记忆拆分为四个文件而非一个单体 <code>preferences.json</code> 也使手动检查变得简单——<code>cat feedback.json</code> 可以只看 Agent 从纠正中学到了什么，而不用翻过用户画像数据和项目截止日期。</span>
+    </p>
+
+    <p>
+      <span data-en>Why flat files and not a database? Because the access pattern is simple (read-all-on-startup, append-on-event, read-by-user-id), the data volume is small (kilobytes per user), and file-based storage is trivially portable and debuggable. You can <code>cat preferences.json</code> to see exactly what the agent remembers. No ORM, no migration scripts, no connection pooling. The right tool for the scale.</span>
+      <span data-zh>为什么用文件而不是数据库？因为访问模式简单（启动时全量读取、事件时追加、按用户 ID 读取），数据量小（每用户千字节级），文件存储天然可移植和可调试。你可以 <code>cat preferences.json</code> 来看 Agent 到底记住了什么。不需要 ORM、迁移脚本、连接池。适合当前规模的正确工具。</span>
+    </p>
+
+    <h2><span data-en>Design Principles</span><span data-zh>设计原则</span></h2>
+
+    <p>
+      <span data-en>Five principles emerged from building and operating this system:</span>
+      <span data-zh>构建和运营这个系统后浮现出五条原则：</span>
+    </p>
+
+    <ol>
+      <li><span data-en><strong>Different information, different lifetimes and types.</strong> Don't treat all memory equally. Conversations are ephemeral. Persistent memories are permanent but subdivide into four dimensions (user, feedback, project, reference) with different staleness profiles and retrieval priorities. Summaries are archival. Design storage, eviction, and injection policies accordingly.</span><span data-zh><strong>不同的信息，不同的生命周期和类型。</strong>不要同等对待所有记忆。对话是短暂的。持久记忆是永久的但细分为四个维度（User、Feedback、Project、Reference），具有不同的过期特征和检索优先级。摘要是归档的。相应设计存储、驱逐和注入策略。</span></li>
+      <li><span data-en><strong>Budget beats completeness.</strong> It's better to inject 4000 characters of high-priority memory than 20000 characters of everything. The LLM performs worse with bloated context, and you pay for every token. Curate aggressively.</span><span data-zh><strong>预算优于完整性。</strong>注入 4000 字符的高优先级记忆比注入 20000 字符的所有内容更好。LLM 在膨胀的上下文中表现更差，而且你为每个 token 付费。积极策展。</span></li>
+      <li><span data-en><strong>Memory is invisible infrastructure.</strong> The LLM should never see memory management commands or tier labels. It receives a context block that looks like a briefing. The machinery is human-side, not model-side.</span><span data-zh><strong>记忆是不可见的基础设施。</strong>LLM 不应该看到记忆管理命令或层级标签。它接收一个看起来像简报的上下文块。机制是人侧的，不是模型侧的。</span></li>
+      <li><span data-en><strong>Crash-safe by default.</strong> Every state transition writes to disk atomically. The system can be killed at any point and restart with full memory. This isn't optional for production agents — it's table stakes.</span><span data-zh><strong>默认崩溃安全。</strong>每次状态转换原子写入磁盘。系统可以在任何点被杀死并以完整记忆重启。对于生产 Agent 这不是可选的——这是基本要求。</span></li>
+      <li><span data-en><strong>Observe before you optimize.</strong> Episode logs exist to make the memory system's impact measurable. Without them, "the agent seems to remember better" is a feeling, not a fact. With them, you can answer: how often do users repeat preferences? How many tasks reference past session context? Is the summary quality improving?</span><span data-zh><strong>先观察再优化。</strong>Episode 日志的存在是为了使记忆系统的影响可衡量。没有它们，"Agent 似乎记忆更好了"是一种感觉，不是事实。有了它们，你可以回答：用户多频繁重复偏好？多少任务引用了过去会话的上下文？摘要质量在改善吗？</span></li>
+    </ol>
+
+    <blockquote>
+      <span data-en>We've been running this memory system for eight months. The question we still can't answer: how do you evaluate memory quality? We can measure whether the agent uses injected memories — that's just prompt tracing. We can measure whether users repeat themselves less — that's a proxy for recall. But we can't easily measure whether the agent would have been better off without a stale memory. A project deadline from two months ago that's still in context doesn't cause a visible error — it causes a subtly wrong assumption that might never surface. We track memory injection rate, user-repetition rate, and correction frequency. We still don't have a metric for "memory that's actively making things worse by being present." If you figure that one out, let me know.</span>
+      <span data-zh>这个记忆系统已经运行了八个月。我们仍然无法回答的问题是：如何评估记忆质量？我们可以衡量 Agent 是否使用了注入的记忆——那只是 prompt 追踪。我们可以衡量用户是否减少了重复——那是召回的代理指标。但我们无法轻易衡量 Agent 是否在没有一条过期记忆的情况下会表现更好。一个两个月前的项目截止日期仍然在上下文中不会导致可见的错误——它导致一个微妙的错误假设，可能永远不会浮出水面。我们追踪记忆注入率、用户重复率和纠正频率。我们仍然没有一个"因为存在而正在积极恶化结果的记忆"的指标。如果你找到了这个答案，告诉我。</span>
+    </blockquote>
+
+    <div class="article-page-footer">
+      <p><span data-en>Written by Ming Zhou · 2025</span><span data-zh>作者：Ming Zhou · 2025</span></p>
+      <a href="../#writing" class="article-page-back">&larr; <span data-en>Back to all writing</span><span data-zh>返回文章列表</span></a>
+    </div>
+  </main>
+
+  <script src="../js/main.js"></script>
+</body>
+</html>

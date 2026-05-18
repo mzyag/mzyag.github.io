@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en" data-lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Why Deterministic Gating Matters for Production Agents — Ming Zhou</title>
+  <meta name="description" content="LLMs are probabilistic. Production systems need deterministic control points. The four-outcome routing pattern and why guardrails alone aren't enough.">
+  <link rel="stylesheet" href="../css/style.css">
+</head>
+<body>
+
+  <nav class="nav scrolled" id="nav">
+    <div class="nav-inner">
+      <a class="nav-logo" href="../">MZ<span class="nav-logo-dot">.</span></a>
+      <div class="nav-links" id="navLinks">
+        <a href="../#projects"><span data-en>Projects</span><span data-zh>项目</span></a>
+        <a href="../#writing"><span data-en>Writing</span><span data-zh>文章</span></a>
+        <a href="../#about"><span data-en>About</span><span data-zh>关于</span></a>
+        <a href="../#contact"><span data-en>Contact</span><span data-zh>联系</span></a>
+        <button class="lang-toggle" id="langToggle" aria-label="Toggle language">
+          <span data-en>中文</span><span data-zh>EN</span>
+        </button>
+      </div>
+      <button class="nav-hamburger" id="navHamburger" aria-label="Menu">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+  </nav>
+
+  <main class="article-page">
+    <a href="../#writing" class="article-page-back">&larr; <span data-en>Back to all writing</span><span data-zh>返回文章列表</span></a>
+
+    <div class="article-page-meta">
+      <span>2025</span>
+      <span><span data-en>8 min read</span><span data-zh>8 分钟阅读</span></span>
+    </div>
+
+    <h1>
+      <span data-en>Why Deterministic Gating Matters for Production Agents</span>
+      <span data-zh>为什么确定性门控对生产级 Agent 至关重要</span>
+    </h1>
+
+    <p class="article-lead">
+      <span data-en>LLMs are probabilistic by nature. Every response carries uncertainty. In a demo, that's fine — a plausible-sounding answer is good enough. In production, especially in regulated environments, "plausible" can mean "wrong in a way that causes real harm." You can't make the LLM itself deterministic. So you wrap it in control points that are.</span>
+      <span data-zh>LLM 天生是概率性的。每个回答都带有不确定性。在演示中这没问题——听起来合理的答案就够了。但在生产环境中，特别是受监管的环境中，"合理"可能意味着"以造成实际损害的方式出错"。解决方案不是让 LLM 变得更确定性——而是用确定性控制点包裹它。</span>
+    </p>
+
+    <h2><span data-en>The Production Gap</span><span data-zh>生产差距</span></h2>
+
+    <p>
+      <span data-en>Most agent tutorials show a simple loop: user asks a question, the LLM reasons about it, calls some tools, and returns an answer. This works remarkably well in controlled settings. But between that demo and a production deployment, there's a gap that most teams underestimate.</span>
+      <span data-zh>大多数 Agent 教程展示的是一个简单的循环：用户提问，LLM 推理，调用一些工具，返回答案。这在受控环境中效果相当好。但在演示和生产部署之间，存在一个大多数团队低估的差距。</span>
+    </p>
+
+    <p>
+      <span data-en>In production, you need to answer questions that the demo never asked:</span>
+      <span data-zh>在生产中，你需要回答演示从未提出的问题：</span>
+    </p>
+
+    <ul>
+      <li><span data-en><strong>Is the agent authorized</strong> to answer this specific question for this specific user?</span><span data-zh>Agent 是否<strong>被授权</strong>为这个特定用户回答这个特定问题？</span></li>
+      <li><span data-en><strong>Is the evidence sufficient</strong> to support the answer, or is the agent confabulating?</span><span data-zh>证据是否<strong>充分</strong>到足以支撑答案，还是 Agent 在虚构？</span></li>
+      <li><span data-en><strong>Is the answer safe to deliver</strong> without human review?</span><span data-zh>答案在没有人工审查的情况下<strong>是否安全</strong>可以交付？</span></li>
+      <li><span data-en><strong>Can we prove, after the fact</strong>, exactly why the agent said what it said?</span><span data-zh>我们能否在事后<strong>证明</strong> Agent 为什么做出这样的回答？</span></li>
+    </ul>
+
+    <p>
+      <span data-en>None of these are LLM problems. They're systems engineering problems, and you solve them the same way you'd solve any systems problem: deterministic code at the boundaries, with audit logs.</span>
+      <span data-zh>这些不是 LLM 问题。它们是系统工程问题。它们需要系统工程解决方案——位于概率性 LLM 和现实世界操作之间的确定性、可测试、可审计的控制点。</span>
+    </p>
+
+    <h2><span data-en>What Is Deterministic Gating?</span><span data-zh>什么是确定性门控？</span></h2>
+
+    <p>
+      <span data-en>A deterministic gate is a hard checkpoint in the agent's execution flow where a <strong>rule-based decision</strong> — not another LLM call — determines what happens next. The gate has a fixed set of outcomes, and the routing logic is code, not a prompt.</span>
+      <span data-zh>确定性门控是 Agent 执行流程中的一个硬检查点，在这里由<strong>基于规则的决策</strong>——而非另一个 LLM 调用——决定下一步发生什么。门控有固定的结果集，路由逻辑是代码，不是提示词。</span>
+    </p>
+
+    <p>
+      <span data-en>The pattern we've found most useful is a <strong>four-outcome routing gate</strong>:</span>
+      <span data-zh>我们发现最有用的模式是<strong>四路结果路由门控</strong>：</span>
+    </p>
+
+    <ol>
+      <li><span data-en><strong>Answer</strong> — Evidence is sufficient, authorization is clear, confidence is high. Deliver the response.</span><span data-zh><strong>回答</strong>——证据充分、授权明确、置信度高。交付响应。</span></li>
+      <li><span data-en><strong>Refuse</strong> — The question is out of scope, the user lacks entitlement, or the domain is explicitly blocked. Return a clear refusal with the reason.</span><span data-zh><strong>拒绝</strong>——问题超出范围、用户缺少权限、或领域被明确阻止。返回明确的拒绝和原因。</span></li>
+      <li><span data-en><strong>Citations-only</strong> — The system found relevant evidence but can't synthesize a confident answer. Return the citations and let the human decide.</span><span data-zh><strong>仅引用</strong>——系统找到了相关证据但无法合成可靠答案。返回引用让人类决定。</span></li>
+      <li><span data-en><strong>Escalate</strong> — The risk level exceeds the agent's authority. Route to a human reviewer with full context.</span><span data-zh><strong>升级</strong>——风险级别超出 Agent 权限。将完整上下文路由给人工审查。</span></li>
+    </ol>
+
+    <p>
+      <span data-en>This routing is <strong>not done by the LLM</strong>. The LLM generates a candidate answer and metadata (confidence signals, retrieved evidence, risk indicators). Then deterministic code — regular if/else logic, threshold checks, policy lookups — routes the output to one of the four outcomes.</span>
+      <span data-zh>关键洞察是这个路由<strong>不是由 LLM 完成的</strong>。LLM 生成候选答案和元数据（置信度信号、检索到的证据、风险指标）。然后确定性代码——常规的 if/else 逻辑、阈值检查、策略查找——将输出路由到四个结果之一。</span>
+    </p>
+
+    <h2><span data-en>Why Not Just Guardrails?</span><span data-zh>为什么不只用 Guardrails？</span></h2>
+
+    <p>
+      <span data-en>Guardrails and gating solve different problems, and conflating them is a common mistake.</span>
+      <span data-zh>Guardrails 和门控解决不同的问题，混淆它们是一个常见错误。</span>
+    </p>
+
+    <p>
+      <span data-en><strong>Guardrails are reactive.</strong> They check the LLM's output after generation and block or modify harmful content. They're essentially output filters — PII detection, toxicity checks, format validation. Guardrails answer: "Is this output safe to show?"</span>
+      <span data-zh><strong>Guardrails 是被动的。</strong>它们在生成后检查 LLM 的输出并阻止或修改有害内容。它们本质上是输出过滤器——PII 检测、毒性检查、格式验证。Guardrails 回答的是："这个输出安全吗？"</span>
+    </p>
+
+    <p>
+      <span data-en><strong>Gating is proactive.</strong> It decides whether the agent should answer at all, in what form, and with what authority. Gating answers: "Should this output exist?"</span>
+      <span data-zh><strong>门控是主动的。</strong>它决定 Agent 是否应该回答、以什么形式、以什么权限回答。门控回答的是："这个输出应该存在吗？"</span>
+    </p>
+
+    <p>
+      <span data-en>In a regulated environment, "we caught the bad output and blocked it" is not good enough. The question is: why was the bad output generated in the first place? Gating prevents the agent from entering risky territory. Guardrails catch what leaks through. You need both, but gating is the primary control.</span>
+      <span data-zh>在受监管的环境中，"我们捕获了不良输出并阻止了它"是不够的。问题是：为什么首先会生成不良输出？门控防止 Agent 进入风险领域。Guardrails 捕获泄漏的内容。两者都需要，但门控是主要控制。</span>
+    </p>
+
+    <h2><span data-en>Concrete Patterns</span><span data-zh>具体模式</span></h2>
+
+    <h3><span data-en>Answerability Check</span><span data-zh>可回答性检查</span></h3>
+    <p>
+      <span data-en>Before generation, verify that the retrieved context actually addresses the user's question. This is a simple semantic overlap check — not another LLM reasoning step. If the retrieved documents don't contain information relevant to the query, the gate routes to "citations-only" or "refuse" instead of letting the LLM hallucinate an answer from thin air.</span>
+      <span data-zh>在生成之前，验证检索到的上下文是否确实针对用户的问题。这是一个简单的语义重叠检查——不是另一个 LLM 推理步骤。如果检索到的文档不包含与查询相关的信息，门控将路由到"仅引用"或"拒绝"，而不是让 LLM 凭空幻觉出一个答案。</span>
+    </p>
+
+    <h3><span data-en>Evidence Threshold</span><span data-zh>证据阈值</span></h3>
+    <p>
+      <span data-en>Every claim in the output must be backed by a retrievable citation. We enforce "no evidence, no conclusion" as a platform contract. The gate counts evidence items against claims. If coverage drops below the threshold, the output is downgraded to citations-only.</span>
+      <span data-zh>输出中的每个声明都必须有可检索的引用支持。我们将"无证据、无结论"作为平台契约执行。门控计算证据项与声明的对应关系。如果覆盖率低于阈值，输出降级为仅引用。</span>
+    </p>
+
+    <h3><span data-en>Version and Jurisdiction Constraints</span><span data-zh>版本和管辖区约束</span></h3>
+    <p>
+      <span data-en>In multi-region regulated environments, referencing the wrong version of a document or a regulation from the wrong jurisdiction is a concrete risk, not a theoretical one. The gate checks every cited reference against version metadata and the user's jurisdiction entitlements. A wrong-version citation is treated as a missing citation.</span>
+      <span data-zh>在多区域受监管环境中，引用错误版本的文档或错误管辖区的法规是一个具体风险，而非理论风险。门控检查每个引用的参考文献是否符合版本元数据和用户的管辖区权限。错误版本的引用被视为缺失引用。</span>
+    </p>
+
+    <h2><span data-en>Implementation Principles</span><span data-zh>实施原则</span></h2>
+
+    <ul>
+      <li><span data-en><strong>Gate at orchestration boundaries, not inside LLM calls.</strong> The gate sits between pipeline stages (retrieval → generation → output), not inside a prompt. This makes it testable independently of the LLM.</span><span data-zh><strong>在编排边界处设门控，而不是在 LLM 调用内部。</strong>门控位于管道阶段之间（检索 → 生成 → 输出），而不是在提示词内部。这使其可以独立于 LLM 进行测试。</span></li>
+      <li><span data-en><strong>Make every gate decision auditable.</strong> Each gate should log: timestamp, gate_id, rule_id, input signals, outcome, and reason. This isn't optional in regulated environments — it's how you prove compliance.</span><span data-zh><strong>使每个门控决策可审计。</strong>每个门控应记录：时间戳、gate_id、rule_id、输入信号、结果和原因。在受监管环境中这不是可选的——这是你证明合规性的方式。</span></li>
+      <li><span data-en><strong>Fail closed, not open.</strong> If the gate can't determine the right outcome (missing metadata, service timeout, unexpected input), the default is escalation, not answer. This is the opposite of most demo agents, which default to "just answer."</span><span data-zh><strong>默认关闭，而非默认开放。</strong>如果门控无法确定正确的结果（缺少元数据、服务超时、意外输入），默认是升级，而非回答。这与大多数演示 Agent 相反——它们默认"直接回答"。</span></li>
+      <li><span data-en><strong>Keep gates fast.</strong> Gates should complete in single-digit milliseconds. No LLM inference, no network calls to external services. All the data they need should be available in the current pipeline context.</span><span data-zh><strong>保持门控快速。</strong>门控应在个位数毫秒内完成。不进行 LLM 推理，不调用外部服务。它们需要的所有数据应在当前管道上下文中可用。</span></li>
+    </ul>
+
+    <h2><span data-en>Results in Practice</span><span data-zh>实践结果</span></h2>
+
+    <p>
+      <span data-en>We rolled out deterministic gating across three business lines — credit advisory, insurance claims, and fund compliance — on the same production agent platform. The numbers didn't all move in the same direction at the same time.</span>
+      <span data-zh>我们在同一个生产 Agent 平台上，对三条业务线——信贷咨询、保险理赔和基金合规——上线了确定性门控。各项指标并没有同时朝同一个方向变动。</span>
+    </p>
+
+    <ul>
+      <li><span data-en>In the first month, escalation rate averaged 22.4% — much higher than expected. Credit advisory alone was at 31% because our jurisdiction rules didn't account for differences between HK and Macau regulatory regimes. After patching the jurisdiction mapping, overall escalation dropped to 11.7% by Q3 and has sat around 8–13% since.</span><span data-zh>上线第一个月，升级率平均为 22.4%——远高于预期。信贷咨询单项高达 31%，因为我们的管辖区规则没有覆盖港澳监管制度的差异。修补管辖区映射后，到第三季度整体升级率降至 11.7%，此后一直稳定在 8–13% 左右。</span></li>
+      <li><span data-en>Unsupported or mismatched answers went from 3.1% (pre-gating baseline, sampled over 6 weeks) to 1.4% by end of Q2. Insurance claims saw the biggest drop — from 4.3% to 0.9% — because their evidence corpus was the most structured.</span><span data-zh>无支撑或不匹配的答案从 3.1%（门控上线前 6 周采样基线）降至第二季度末的 1.4%。保险理赔的降幅最大——从 4.3% 降到 0.9%——因为其证据语料库结构化程度最高。</span></li>
+      <li><span data-en>Wrong-version or unauthorized references: 19/month in the pre-gating period, down to 4–6/month by Q3. We still see spikes when new regulation versions are ingested — the November 2024 update caused 11 incidents in a single week before the version index caught up.</span><span data-zh>错误版本或未授权引用：门控上线前为每月 19 次，到第三季度降至每月 4–6 次。新法规版本入库时仍会出现峰值——2024 年 11 月的更新在版本索引同步前一周内造成了 11 起事件。</span></li>
+      <li><span data-en>Citation coverage: 97.3% across fund compliance, 96.1% for credit advisory, 94.8% for insurance. The insurance number is lower because some legacy policy documents haven't been chunked at the clause level yet.</span><span data-zh>引用覆盖率：基金合规 97.3%，信贷咨询 96.1%，保险 94.8%。保险的数字较低，因为部分历史保单文件尚未按条款级别分块。</span></li>
+    </ul>
+
+    <p>
+      <span data-en>The counterintuitive lesson: by making the agent refuse or escalate more often, we made the answers it did deliver significantly more trustworthy. In production, trust compounds. An agent that's right 100% of the time on 85% of queries is far more valuable than one that's right 95% of the time on 100% of queries.</span>
+      <span data-zh>反直觉的教训：通过让 Agent 更频繁地拒绝或升级，我们使其确实交付的答案显著更可信。在生产环境中，信任是一点一点攒起来的，但崩塌只需要一次。一个对 85% 的查询 100% 正确的 Agent 远比一个对 100% 的查询 95% 正确的 Agent 更有价值。</span>
+    </p>
+
+    <blockquote>
+      <span data-en>After 14 months in production, the thing I still don't have a clean answer for: how do you set escalation thresholds for a domain the system hasn't seen enough traffic in? Our fund compliance gates were tuned on ~80,000 queries. When we onboarded a private credit team last quarter, we were back to guessing — and the escalation rate jumped to 28% in their first two weeks. The gates worked exactly as designed; the calibration just wasn't there yet. I suspect this cold-start problem is going to be the bottleneck for any team trying to extend gating to new verticals.</span>
+      <span data-zh>上线 14 个月后，我仍然没有干净答案的问题是：如何为系统尚未积累足够流量的领域设置升级阈值？我们的基金合规门控是在约 80,000 次查询上调优的。上季度接入一个私募信贷团队时，我们又回到了猜的状态——他们上线头两周升级率飙到了 28%。门控完全按设计运行，只是校准还没跟上。我怀疑这个冷启动问题会成为任何想把门控扩展到新垂直领域的团队的瓶颈。</span>
+    </blockquote>
+
+    <div class="article-page-footer">
+      <p><span data-en>Written by Ming Zhou · 2025</span><span data-zh>作者：Ming Zhou · 2025</span></p>
+      <a href="../#writing" class="article-page-back">&larr; <span data-en>Back to all writing</span><span data-zh>返回文章列表</span></a>
+    </div>
+  </main>
+
+  <script src="../js/main.js"></script>
+</body>
+</html>

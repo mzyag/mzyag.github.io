@@ -1,11 +1,562 @@
 <!DOCTYPE html>
-<html>
+<html lang="en" data-lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Ming Zhou</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ming Zhou — Tech Lead · AI Agent Platforms</title>
+  <meta name="description" content="Tech Lead building AI Agent platforms for regulated, global systems. 12+ years across financial services and internet-scale platforms.">
+  <meta property="og:title" content="Ming Zhou — Tech Lead · AI Agent Platforms">
+  <meta property="og:description" content="I design, build, and operate production AI systems where reliability, traceability, and governance are non-negotiable.">
+  <meta property="og:type" content="website">
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect fill='%2309090b' width='100' height='100' rx='16'/%3E%3Ctext x='50' y='72' font-family='Inter,sans-serif' font-size='64' font-weight='700' fill='%233b82f6' text-anchor='middle'%3EM%3C/text%3E%3C/svg%3E">
+  <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
-  <h1>Hello, I'm Ming Zhou.</h1>
-  <p>Site under construction.</p>
+
+  <!-- Navigation -->
+  <nav class="nav" id="nav">
+    <div class="nav-inner">
+      <a class="nav-logo" href="#">MZ<span class="nav-logo-dot">.</span></a>
+      <div class="nav-links" id="navLinks">
+        <a href="#projects"><span data-en>Projects</span><span data-zh>项目</span></a>
+        <a href="#writing"><span data-en>Writing</span><span data-zh>文章</span></a>
+        <a href="#about"><span data-en>About</span><span data-zh>关于</span></a>
+        <a href="#contact"><span data-en>Contact</span><span data-zh>联系</span></a>
+        <button class="lang-toggle" id="langToggle" aria-label="Toggle language">
+          <span data-en>中文</span><span data-zh>EN</span>
+        </button>
+      </div>
+      <button class="nav-hamburger" id="navHamburger" aria-label="Menu">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+  </nav>
+
+  <!-- Hero -->
+  <section id="hero" class="hero">
+    <div class="container">
+      <p class="hero-label">
+        <span data-en>Hi, I'm</span>
+        <span data-zh>你好，我是</span>
+      </p>
+      <h1 class="hero-name">Ming Zhou</h1>
+      <h2 class="hero-tagline">
+        <span data-en>Tech Lead building AI Agent platforms<br>for regulated, global systems</span>
+        <span data-zh>技术负责人 · 为受监管的全球化系统<br>构建 AI Agent 平台</span>
+      </h2>
+      <p class="hero-desc">
+        <span data-en>12+ years across financial services and internet-scale platforms. I've spent the last three building production AI systems in a regulated, multi-region environment — where every agent output is auditable and every failure has a bounded blast radius.</span>
+        <span data-zh>12+ 年金融服务与大规模互联网平台经验。我设计、构建并运营生产级 AI 系统——在可靠性、可追溯性和治理不可妥协的场景下交付。</span>
+      </p>
+      <div class="hero-ctas">
+        <a href="#projects" class="btn btn-primary"><span data-en>View Projects</span><span data-zh>查看项目</span></a>
+        <a href="#writing" class="btn btn-outline"><span data-en>Read Writing</span><span data-zh>阅读文章</span></a>
+        <a href="#contact" class="btn btn-outline"><span data-en>Contact Me</span><span data-zh>联系我</span></a>
+      </div>
+      <div class="hero-stack">
+        <span>LangGraph</span><span>LlamaIndex</span><span>FastAPI</span><span>Kubernetes</span><span>OpenTelemetry</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- Projects -->
+  <section id="projects" class="section">
+    <div class="container">
+      <h2 class="section-title">
+        <span class="section-number">01.</span>
+        <span data-en>Projects</span><span data-zh>项目</span>
+      </h2>
+      <p class="section-subtitle">
+        <span data-en>Three capabilities of a single AI Agent platform built over 3 years in a regulated, multi-region financial environment. Same infrastructure, different problem domains.</span>
+        <span data-zh>同一个 AI Agent 平台在 3 年间构建的三个能力维度。在受监管的多区域金融环境中，相同基础设施，不同问题域。</span>
+      </p>
+
+      <!-- Project 1 -->
+      <article class="project-card">
+        <div class="project-header">
+          <div class="project-label">
+            <span data-en>Featured Project</span><span data-zh>核心项目</span>
+          </div>
+          <h3 class="project-title">
+            <span data-en>AI Agent Platform — Governable RAG & Agentic Workflows</span>
+            <span data-zh>AI Agent 平台 — 可治理的 RAG 与 Agentic 工作流</span>
+          </h3>
+          <div class="project-tags">
+            <span>LangGraph</span><span>LlamaIndex</span><span>Milvus</span><span>Human-in-the-loop</span><span>SRE-grade</span>
+          </div>
+        </div>
+        <div class="project-body">
+          <div class="project-section">
+            <h4><span data-en>Problem</span><span data-zh>问题</span></h4>
+            <p>
+              <span data-en>Expert-dependent, manual workflows in a regulated multi-region environment. Every output needed citations, audit trails, and jurisdictional compliance. No existing platform met all three requirements simultaneously.</span>
+              <span data-zh>受监管多区域环境中依赖专家的手动工作流。每个输出都需要引用、审计追踪和司法管辖合规。没有现有平台能同时满足这三项要求。</span>
+            </p>
+          </div>
+          <div class="project-section">
+            <h4><span data-en>Architecture</span><span data-zh>架构</span></h4>
+            <div class="arch-diagram">
+              <div class="arch-flow">
+                <div class="arch-node">Request</div>
+                <div class="arch-arrow">&rarr;</div>
+                <div class="arch-node arch-core">LangGraph<br>Orchestrator</div>
+                <div class="arch-arrow">&rarr;</div>
+                <div class="arch-node">RAG Pipeline<br><small>LlamaIndex + Milvus</small></div>
+                <div class="arch-arrow">&rarr;</div>
+                <div class="arch-node arch-gate">Deterministic<br>Gating</div>
+                <div class="arch-arrow">&rarr;</div>
+                <div class="arch-node">Structured<br>Output</div>
+              </div>
+              <div class="arch-branches">
+                <div class="arch-branch">
+                  <div class="arch-branch-line"></div>
+                  <div class="arch-node arch-small">Tool Calling</div>
+                </div>
+                <div class="arch-branch">
+                  <div class="arch-branch-line"></div>
+                  <div class="arch-node arch-small">Human Escalation</div>
+                </div>
+                <div class="arch-branch">
+                  <div class="arch-branch-line"></div>
+                  <div class="arch-node arch-small">Audit Trail &amp; Trace</div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="project-section">
+            <h4><span data-en>Key Decisions</span><span data-zh>关键决策</span></h4>
+            <ul>
+              <li>
+                <span data-en><strong>Citation as a platform contract</strong> — "No evidence, no conclusion." Every output must carry verifiable references with version, jurisdiction, and entitlement metadata.</span>
+                <span data-zh><strong>引用即平台契约</strong>——"无证据，无结论"。每个输出必须携带可验证的引用，包含版本、管辖区和权限元数据。</span>
+              </li>
+              <li>
+                <span data-en><strong>Deterministic safety gating</strong> — Four-outcome routing (answer / refuse / citations-only / escalate) using rule-based checks, not another LLM call. Keeps control fast and auditable.</span>
+                <span data-zh><strong>确定性安全门控</strong>——四路结果路由（回答 / 拒绝 / 仅引用 / 升级），使用基于规则的检查而非 LLM 调用。保持控制快速且可审计。</span>
+              </li>
+              <li>
+                <span data-en><strong>Replay-based evaluation</strong> — Captured production traces feed offline regression suites. Model updates go through promotion gates before canary rollout.</span>
+                <span data-zh><strong>基于重放的评估</strong>——捕获生产 trace 用于离线回归测试。模型更新需通过准入门控后再进行金丝雀发布。</span>
+              </li>
+            </ul>
+          </div>
+          <div class="project-section">
+            <h4><span data-en>Results</span><span data-zh>成果</span></h4>
+            <div class="metrics-grid">
+              <div class="metric">
+                <div class="metric-value">97%</div>
+                <div class="metric-label"><span data-en>Citation coverage (avg)</span><span data-zh>引用覆盖率（均值）</span></div>
+              </div>
+              <div class="metric">
+                <div class="metric-value">73→31 min</div>
+                <div class="metric-label"><span data-en>MTTR (median, Q2→Q4)</span><span data-zh>MTTR（中位数，Q2→Q4）</span></div>
+              </div>
+              <div class="metric">
+                <div class="metric-value">3→8</div>
+                <div class="metric-label"><span data-en>Business lines (grew over 2 yrs)</span><span data-zh>业务线（2 年增长）</span></div>
+              </div>
+              <div class="metric">
+                <div class="metric-value">~40%</div>
+                <div class="metric-label"><span data-en>Blast radius per incident</span><span data-zh>单次事故影响范围</span></div>
+              </div>
+            </div>
+          </div>
+          <div class="project-stack">
+            <span data-en>Stack:</span><span data-zh>技术栈：</span> Python, FastAPI, LangGraph, LlamaIndex, Milvus, Redis, OpenTelemetry, Jaeger, Langfuse, vLLM, Prometheus/Grafana, Kubernetes, Helm, Istio
+          </div>
+        </div>
+      </article>
+
+      <!-- Project 2 -->
+      <article class="project-card">
+        <div class="project-header">
+          <h3 class="project-title">
+            <span data-en>Workflow Automation Agent — Plan-and-Execute Across Internal Systems</span>
+            <span data-zh>工作流自动化 Agent — 跨内部系统的计划执行引擎</span>
+          </h3>
+          <div class="project-tags">
+            <span>Tool Calling</span><span>Least-privilege</span><span>Circuit Breakers</span><span>End-to-end Traceability</span>
+          </div>
+        </div>
+        <div class="project-body">
+          <div class="project-section">
+            <h4><span data-en>Problem</span><span data-zh>问题</span></h4>
+            <p>
+              <span data-en>Multi-step workflows spanning 10–20 internal systems. Manual execution was slow, error-prone, and leaked data across system boundaries. No audit trail for cross-system operations.</span>
+              <span data-zh>跨 10–20 个内部系统的多步骤工作流。手动执行缓慢、易出错，且跨系统边界泄露数据。跨系统操作无审计追踪。</span>
+            </p>
+          </div>
+          <div class="project-section">
+            <h4><span data-en>Key Decisions</span><span data-zh>关键决策</span></h4>
+            <ul>
+              <li>
+                <span data-en><strong>Reusable plan-and-execute engine</strong> — Multi-step tasks become governed, replayable pipelines under least-privilege constraints with step budgets and circuit breakers.</span>
+                <span data-zh><strong>可复用的计划执行引擎</strong>——多步骤任务变为受治理的、可重放的管道，在最小权限约束下运行，配备步骤预算和熔断器。</span>
+              </li>
+              <li>
+                <span data-en><strong>Validation gates for quality-left</strong> — Time window, owner, approval chain, authoritative source, and conflict detection checks run before downstream delivery.</span>
+                <span data-zh><strong>质量左移的验证门控</strong>——时间窗口、所有者、审批链、权威来源和冲突检测在下游交付前完成检查。</span>
+              </li>
+              <li>
+                <span data-en><strong>Minimum-disclosure output schema</strong> — Standardized packages expose only IDs, required fields, timestamps, and hashes. Reduced manual redaction load by ~50%.</span>
+                <span data-zh><strong>最小披露输出模式</strong>——标准化包仅暴露 ID、必要字段、时间戳和哈希。手动脱敏负载降低约 50%。</span>
+              </li>
+            </ul>
+          </div>
+          <div class="project-section">
+            <h4><span data-en>Results</span><span data-zh>成果</span></h4>
+            <div class="metrics-grid">
+              <div class="metric">
+                <div class="metric-value">10–16</div>
+                <div class="metric-label"><span data-en>Avg steps (from 18–25)</span><span data-zh>平均步骤数（从 18–25）</span></div>
+              </div>
+              <div class="metric">
+                <div class="metric-value">~40%</div>
+                <div class="metric-label"><span data-en>p95 runtime reduction</span><span data-zh>p95 运行时间降低</span></div>
+              </div>
+              <div class="metric">
+                <div class="metric-value">200–500</div>
+                <div class="metric-label"><span data-en>Active users</span><span data-zh>活跃用户</span></div>
+              </div>
+              <div class="metric">
+                <div class="metric-value">3K–10K</div>
+                <div class="metric-label"><span data-en>Runs per month</span><span data-zh>月执行次数</span></div>
+              </div>
+            </div>
+          </div>
+          <div class="project-stack">
+            <span data-en>Stack:</span><span data-zh>技术栈：</span> Python, FastAPI, LangGraph, HTTP/gRPC APIs, OpenTelemetry, Jaeger, Langfuse, Prometheus/Grafana, Kubernetes, Helm, Istio
+          </div>
+        </div>
+      </article>
+
+      <!-- Project 3 -->
+      <article class="project-card">
+        <div class="project-header">
+          <h3 class="project-title">
+            <span data-en>Decision Support Agent — Maker-Checker & Human-in-the-Loop</span>
+            <span data-zh>决策支持 Agent — Maker-Checker 与人在环路</span>
+          </h3>
+          <div class="project-tags">
+            <span>Planner/Executor/Critic</span><span>Maker-Checker</span><span>Decision Arbitration</span><span>Auditable Replay</span>
+          </div>
+        </div>
+        <div class="project-body">
+          <div class="project-section">
+            <h4><span data-en>Problem</span><span data-zh>问题</span></h4>
+            <p>
+              <span data-en>High-risk decision points relied on experience-driven, scattered approvals. No standardized review criteria, no audit trail, and sign-off coverage was only 70–80% for critical decisions.</span>
+              <span data-zh>高风险决策点依赖经验驱动的分散审批。无标准化审查标准、无审计追踪，关键决策的签核覆盖率仅 70–80%。</span>
+            </p>
+          </div>
+          <div class="project-section">
+            <h4><span data-en>Key Decisions</span><span data-zh>关键决策</span></h4>
+            <ul>
+              <li>
+                <span data-en><strong>Maker-checker workflow</strong> — "No sign-off, no issuance." Role-based collaboration with Planner, Executor, and Critic roles, each with codified responsibilities and arbitration rules.</span>
+                <span data-zh><strong>Maker-Checker 工作流</strong>——"无签核、无签发"。基于角色的协作（Planner / Executor / Critic），每个角色有明确的职责和仲裁规则。</span>
+              </li>
+              <li>
+                <span data-en><strong>Executable review criteria</strong> — Codified rules for approve / rework / escalate based on evidence completeness, entitlement blocks, and jurisdiction constraints. Median re-review cycles: 2 → 1.</span>
+                <span data-zh><strong>可执行的审查标准</strong>——基于证据完整性、权限阻断和管辖区约束的编码规则（批准 / 返工 / 升级）。中位重审轮次：2 → 1。</span>
+              </li>
+            </ul>
+          </div>
+          <div class="project-section">
+            <h4><span data-en>Results</span><span data-zh>成果</span></h4>
+            <div class="metrics-grid">
+              <div class="metric">
+                <div class="metric-value">95–99%</div>
+                <div class="metric-label"><span data-en>Sign-off coverage (from 70–80%)</span><span data-zh>签核覆盖率（从 70–80%）</span></div>
+              </div>
+              <div class="metric">
+                <div class="metric-value">~60%</div>
+                <div class="metric-label"><span data-en>p50 cycle time reduction</span><span data-zh>p50 周期时间降低</span></div>
+              </div>
+              <div class="metric">
+                <div class="metric-value">5–10%</div>
+                <div class="metric-label"><span data-en>Cross-team variance (from 15–25%)</span><span data-zh>跨团队差异（从 15–25%）</span></div>
+              </div>
+              <div class="metric">
+                <div class="metric-value">4–8h</div>
+                <div class="metric-label"><span data-en>p95 to review-ready (from 1–2 days)</span><span data-zh>p95 至可审查（从 1–2 天）</span></div>
+              </div>
+            </div>
+          </div>
+          <div class="project-stack">
+            <span data-en>Stack:</span><span data-zh>技术栈：</span> Python, FastAPI, LangGraph, OpenTelemetry, Jaeger, Langfuse, Prometheus/Grafana, Kubernetes, Helm, Istio
+          </div>
+        </div>
+      </article>
+    </div>
+  </section>
+
+  <!-- Writing -->
+  <section id="writing" class="section section-alt">
+    <div class="container">
+      <h2 class="section-title">
+        <span class="section-number">02.</span>
+        <span data-en>Writing</span><span data-zh>文章</span>
+      </h2>
+      <p class="section-subtitle">
+        <span data-en>Lessons from building and operating AI agents in production</span>
+        <span data-zh>构建和运营生产级 AI Agent 的经验总结</span>
+      </p>
+      <div class="articles-grid">
+        <a href="writing/deterministic-gating.html" class="article-card">
+          <div class="article-meta">
+            <span class="article-date">2025</span>
+            <span class="article-read"><span data-en>8 min read</span><span data-zh>8 分钟阅读</span></span>
+          </div>
+          <h3>
+            <span data-en>Why Deterministic Gating Matters for Production Agents</span>
+            <span data-zh>为什么确定性门控对生产级 Agent 至关重要</span>
+          </h3>
+          <p>
+            <span data-en>LLMs are probabilistic. Production systems need deterministic control points. The four-outcome routing pattern and why guardrails alone aren't enough.</span>
+            <span data-zh>LLM 是概率性的，生产系统需要确定性控制点。四路结果路由模式，以及为什么仅靠 guardrails 还不够。</span>
+          </p>
+          <span class="article-link"><span data-en>Read &rarr;</span><span data-zh>阅读 &rarr;</span></span>
+        </a>
+        <a href="writing/three-layers-evaluation.html" class="article-card">
+          <div class="article-meta">
+            <span class="article-date">2025</span>
+            <span class="article-read"><span data-en>7 min read</span><span data-zh>7 分钟阅读</span></span>
+          </div>
+          <h3>
+            <span data-en>Three Layers of Evaluation for Agents in Production</span>
+            <span data-zh>生产级 Agent 的三层评估体系</span>
+          </h3>
+          <p>
+            <span data-en>Component-level, workflow-level, and operational-level — why you need all three, and how replay-based testing connects them.</span>
+            <span data-zh>组件级、工作流级和运维级——为什么三层缺一不可，以及基于重放的测试如何串联它们。</span>
+          </p>
+          <span class="article-link"><span data-en>Read &rarr;</span><span data-zh>阅读 &rarr;</span></span>
+        </a>
+        <a href="writing/when-not-to-use-llm.html" class="article-card">
+          <div class="article-meta">
+            <span class="article-date">2025</span>
+            <span class="article-read"><span data-en>6 min read</span><span data-zh>6 分钟阅读</span></span>
+          </div>
+          <h3>
+            <span data-en>When Not to Use an LLM</span>
+            <span data-zh>什么时候不该用 LLM</span>
+          </h3>
+          <p>
+            <span data-en>The best AI engineers know when not to use AI. A decision framework for choosing between LLM inference and deterministic code in production systems.</span>
+            <span data-zh>最好的 AI 工程师知道什么时候不该用 AI。一个在生产系统中选择 LLM 推理还是确定性代码的决策框架。</span>
+          </p>
+          <span class="article-link"><span data-en>Read &rarr;</span><span data-zh>阅读 &rarr;</span></span>
+        </a>
+        <a href="writing/engineering-the-harness.html" class="article-card">
+          <div class="article-meta">
+            <span class="article-date">2025</span>
+            <span class="article-read"><span data-en>10 min read</span><span data-zh>10 分钟阅读</span></span>
+          </div>
+          <h3>
+            <span data-en>Engineering the Harness: Governing Agent Behavior Without Slowing Down Delivery</span>
+            <span data-zh>工程化 Harness：在不拖慢交付的前提下治理 Agent 行为</span>
+          </h3>
+          <p>
+            <span data-en>How we built a harness layer around LLM agents — routing, human checkpoints, state persistence, watchdog recovery, and layered memory — to make them production-safe without killing velocity.</span>
+            <span data-zh>我们如何在 LLM Agent 周围构建 harness 层——路由、人工检查点、状态持久化、看门狗恢复和分层记忆——在不牺牲速度的前提下使其适合生产环境。</span>
+          </p>
+          <span class="article-link"><span data-en>Read &rarr;</span><span data-zh>阅读 &rarr;</span></span>
+        </a>
+        <a href="writing/ai-native-engineering.html" class="article-card">
+          <div class="article-meta">
+            <span class="article-date">2025</span>
+            <span class="article-read"><span data-en>12 min read</span><span data-zh>12 分钟阅读</span></span>
+          </div>
+          <h3>
+            <span data-en>AI-Native Engineering in Practice: How I Use AI Tools Across the Full Development Cycle</span>
+            <span data-zh>AI 原生工程实践：我如何在完整开发周期中使用 AI 工具</span>
+          </h3>
+          <p>
+            <span data-en>Claude Code, Codex, and Copilot across coding, review, testing, debugging, and docs. Plus how to help teams adopt AI workflows without the hype — solve a pain point, not evangelize a tool.</span>
+            <span data-zh>Claude Code、Codex 和 Copilot 贯穿编码、审查、测试、调试和文档。以及如何帮助团队采纳 AI 工作流——解决痛点，而非布道工具。</span>
+          </p>
+          <span class="article-link"><span data-en>Read &rarr;</span><span data-zh>阅读 &rarr;</span></span>
+        </a>
+
+        <a href="writing/memory-architecture.html" class="article-card">
+          <div class="article-meta">
+            <span class="article-date">2025</span>
+            <span class="article-read"><span data-en>18 min read</span><span data-zh>18 分钟阅读</span></span>
+          </div>
+          <h3>
+            <span data-en>Memory Architecture for Production Agents: Beyond the Context Window</span>
+            <span data-zh>生产级 Agent 的记忆架构：超越上下文窗口</span>
+          </h3>
+          <p>
+            <span data-en>Three-tier temporal architecture, four-dimension content taxonomy (user, feedback, project, reference), budget-aware injection, episode-driven self-improvement loops, and the failure modes we hit in production.</span>
+            <span data-zh>三层时序架构、四维度内容分类（User、Feedback、Project、Reference）、预算感知注入、基于 Episode 的自改进循环，以及我们在生产中遇到的故障模式。</span>
+          </p>
+          <span class="article-link"><span data-en>Read &rarr;</span><span data-zh>阅读 &rarr;</span></span>
+        </a>
+
+        <a href="writing/distributed-systems-production.html" class="article-card">
+          <div class="article-meta">
+            <span class="article-date">2025</span>
+            <span class="article-read"><span data-en>15 min read</span><span data-zh>15 分钟阅读</span></span>
+          </div>
+          <h3>
+            <span data-en>Distributed Systems in Practice: Patterns That Survive Production</span>
+            <span data-zh>分布式系统实践：在生产中存活下来的模式</span>
+          </h3>
+          <p>
+            <span data-en>Service boundaries, API versioning, event-driven patterns, circuit breakers with fallback hierarchies, SLO-based alerting, distributed tracing, saga compensation, and production readiness checklists — the patterns that survived regulated financial environments.</span>
+            <span data-zh>服务边界、API 版本策略、事件驱动模式、带降级层次的熔断器、基于 SLO 的告警、分布式追踪、Saga 补偿，以及生产就绪检查清单——在受监管金融环境中存活下来的模式。</span>
+          </p>
+          <span class="article-link"><span data-en>Read &rarr;</span><span data-zh>阅读 &rarr;</span></span>
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <!-- About -->
+  <section id="about" class="section">
+    <div class="container">
+      <h2 class="section-title">
+        <span class="section-number">03.</span>
+        <span data-en>About</span><span data-zh>关于</span>
+      </h2>
+      <div class="about-grid">
+        <div class="about-bio">
+          <p>
+            <span data-en>I'm a backend and platform engineer with 12+ years of experience, most recently as Tech Lead / AVP at a global financial institution in Shanghai. My work sits at the intersection of <strong>distributed systems</strong>, <strong>AI engineering</strong>, and <strong>production operations</strong>.</span>
+            <span data-zh>我是一名拥有 12+ 年经验的后端和平台工程师，最近担任上海某全球金融机构的技术负责人 / AVP。我的工作处于<strong>分布式系统</strong>、<strong>AI 工程</strong>和<strong>生产运维</strong>的交叉点。</span>
+          </p>
+          <p>
+            <span data-en>Over the past six years, I led a platform that evolved from rule-based compliance workflows into a full LLM-powered agent system — starting with deterministic pipelines and NLP classifiers, then integrating retrieval-augmented generation and agentic orchestration as the technology matured. Before that, I worked on real-time log analytics at a major e-commerce platform and distributed services for financial operations.</span>
+            <span data-zh>过去六年，我主导了一个平台从基于规则的合规工作流演进为完整 LLM 驱动的 Agent 系统——从确定性管道和 NLP 分类器起步，随着技术成熟逐步引入检索增强生成和 Agentic 编排。此前，我在大型电商平台从事实时日志分析，以及金融运营的分布式服务。</span>
+          </p>
+          <p>
+            <span data-en>I work hands-on across architecture, code, and operations. I partner closely with Product to decide <em>what</em> to build, mentor senior engineers, and operate comfortably across global, distributed teams. Bilingual in English and Mandarin.</span>
+            <span data-zh>我亲手参与架构、编码和运维。与产品紧密合作决定<em>做什么</em>，指导高级工程师成长，在跨时区分布式团队中高效工作。中英双语流利。</span>
+          </p>
+          <div class="about-cta">
+            <a href="assets/Ming_Zhou_Resume.pdf" class="btn btn-primary" target="_blank">
+              <span data-en>Download Resume</span><span data-zh>下载简历</span>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            </a>
+          </div>
+        </div>
+        <div class="about-timeline">
+          <h3><span data-en>Experience</span><span data-zh>工作经历</span></h3>
+          <div class="timeline">
+            <div class="timeline-item">
+              <div class="timeline-period">2019 – 2025</div>
+              <div class="timeline-role">
+                <span data-en>Tech Lead / AVP — Global Financial Institution</span>
+                <span data-zh>技术负责人 / AVP — 全球金融机构</span>
+              </div>
+              <div class="timeline-desc">
+                <span data-en>AI Agent platform, RAG, distributed systems, SRE</span>
+                <span data-zh>AI Agent 平台、RAG、分布式系统、SRE</span>
+              </div>
+            </div>
+            <div class="timeline-item">
+              <div class="timeline-period">2018 – 2019</div>
+              <div class="timeline-role">
+                <span data-en>Senior Engineer — E-commerce Platform</span>
+                <span data-zh>高级工程师 — 电商平台</span>
+              </div>
+              <div class="timeline-desc">
+                <span data-en>Real-time analytics, MySQL→TiDB migration, K8s</span>
+                <span data-zh>实时分析、MySQL→TiDB 迁移、K8s</span>
+              </div>
+            </div>
+            <div class="timeline-item">
+              <div class="timeline-period">2016 – 2018</div>
+              <div class="timeline-role">
+                <span data-en>Senior Engineer — Financial Services</span>
+                <span data-zh>高级工程师 — 金融服务</span>
+              </div>
+              <div class="timeline-desc">
+                <span data-en>Spring Boot/Cloud microservices, API architecture</span>
+                <span data-zh>Spring Boot/Cloud 微服务、API 架构</span>
+              </div>
+            </div>
+            <div class="timeline-item">
+              <div class="timeline-period">2012 – 2016</div>
+              <div class="timeline-role">
+                <span data-en>Full-Stack Engineer — Enterprise & SaaS</span>
+                <span data-zh>全栈工程师 — 企业与 SaaS</span>
+              </div>
+              <div class="timeline-desc">
+                <span data-en>Backend services, system design fundamentals</span>
+                <span data-zh>后端服务、系统设计基础</span>
+              </div>
+            </div>
+          </div>
+          <h3 class="skills-heading"><span data-en>Technical Skills</span><span data-zh>技术技能</span></h3>
+          <div class="skills-grid">
+            <div class="skill-group">
+              <div class="skill-label"><span data-en>Languages</span><span data-zh>语言</span></div>
+              <div class="skill-items">Java, Python, TypeScript</div>
+            </div>
+            <div class="skill-group">
+              <div class="skill-label"><span data-en>AI/LLM</span><span data-zh>AI/LLM</span></div>
+              <div class="skill-items">LangGraph, LlamaIndex, Milvus, vLLM, QLoRA</div>
+            </div>
+            <div class="skill-group">
+              <div class="skill-label"><span data-en>Backend</span><span data-zh>后端</span></div>
+              <div class="skill-items">FastAPI, Spring Boot, gRPC, Event-driven</div>
+            </div>
+            <div class="skill-group">
+              <div class="skill-label"><span data-en>Infra</span><span data-zh>基础设施</span></div>
+              <div class="skill-items">K8s, Helm, Istio, Docker, CI/CD</div>
+            </div>
+            <div class="skill-group">
+              <div class="skill-label"><span data-en>Observability</span><span data-zh>可观测性</span></div>
+              <div class="skill-items">OpenTelemetry, Prometheus, Grafana, Jaeger</div>
+            </div>
+            <div class="skill-group">
+              <div class="skill-label"><span data-en>Data</span><span data-zh>数据</span></div>
+              <div class="skill-items">PostgreSQL, MySQL, TiDB, MongoDB, Redis</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Contact -->
+  <section id="contact" class="section section-alt">
+    <div class="container container-narrow">
+      <h2 class="section-title">
+        <span class="section-number">04.</span>
+        <span data-en>Contact</span><span data-zh>联系</span>
+      </h2>
+      <p class="contact-desc">
+        <span data-en>I'm exploring opportunities as a senior technical leader. If you're building something that demands both engineering depth and product thinking, I'd like to hear about it.</span>
+        <span data-zh>我正在寻找高级技术负责人的机会。如果你正在构建需要工程深度与产品思维兼备的系统，欢迎交流。</span>
+      </p>
+      <div class="contact-row">
+        <a href="mailto:zcm_5237@163.com" class="contact-item">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>
+          <span>zcm_5237@163.com</span>
+        </a>
+        <a href="https://github.com/mzyag" class="contact-item" target="_blank" rel="noopener">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
+          <span>github.com/mzyag</span>
+        </a>
+        <div class="contact-item">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+          <span>Shanghai, China</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="container">
+      <p>&copy; 2026 Ming Zhou. <span data-en>Built with plain HTML, CSS, and JS — no framework needed.</span><span data-zh>纯 HTML/CSS/JS 构建——不需要框架。</span></p>
+    </div>
+  </footer>
+
+  <script src="js/main.js"></script>
 </body>
 </html>

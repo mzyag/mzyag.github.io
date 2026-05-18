@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en" data-lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Distributed Systems in Practice: Patterns That Survive Production — Ming Zhou</title>
+  <meta name="description" content="API versioning, service boundaries, event-driven patterns, SLO-based alerting, circuit breakers, and failure handling — lessons from operating distributed systems in regulated financial environments.">
+  <link rel="stylesheet" href="../css/style.css">
+</head>
+<body>
+
+  <nav class="nav scrolled" id="nav">
+    <div class="nav-inner">
+      <a class="nav-logo" href="../">MZ<span class="nav-logo-dot">.</span></a>
+      <div class="nav-links" id="navLinks">
+        <a href="../#projects"><span data-en>Projects</span><span data-zh>项目</span></a>
+        <a href="../#writing"><span data-en>Writing</span><span data-zh>文章</span></a>
+        <a href="../#about"><span data-en>About</span><span data-zh>关于</span></a>
+        <a href="../#contact"><span data-en>Contact</span><span data-zh>联系</span></a>
+        <button class="lang-toggle" id="langToggle" aria-label="Toggle language">
+          <span data-en>中文</span><span data-zh>EN</span>
+        </button>
+      </div>
+      <button class="nav-hamburger" id="navHamburger" aria-label="Menu">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+  </nav>
+
+  <main class="article-page">
+    <a href="../#writing" class="article-page-back">&larr; <span data-en>Back to all writing</span><span data-zh>返回文章列表</span></a>
+
+    <div class="article-page-meta">
+      <span>2025</span>
+      <span><span data-en>15 min read</span><span data-zh>15 分钟阅读</span></span>
+    </div>
+
+    <h1>
+      <span data-en>Distributed Systems in Practice: Patterns That Survive Production</span>
+      <span data-zh>分布式系统实践：在生产中存活下来的模式</span>
+    </h1>
+
+    <p class="article-lead">
+      <span data-en>There's no shortage of distributed systems theory. CAP theorem, eventual consistency, two-phase commit — most engineers can recite these. The hard part is what happens when a service you depend on starts returning 200 OK with garbage payloads, or when your event consumer falls behind by 4 hours on a Friday afternoon. This article covers the patterns I've relied on across financial services and platform engineering — not the textbook versions, but the versions that survived contact with production.</span>
+      <span data-zh>分布式系统理论从不缺乏。CAP 定理、最终一致性、两阶段提交——大多数工程师都能倒背如流。难的是当你依赖的服务开始返回 200 OK 但内容是垃圾数据时怎么办，或者周五下午你的事件消费者积压了 4 小时时怎么办。这篇文章记录的是我在金融服务和平台工程中真正依赖的模式——不是教科书版本，而是经过生产环境考验后存活下来的版本。</span>
+    </p>
+
+    <!-- Section 1: Service Boundaries -->
+    <h2><span data-en>1. Service Boundaries: Cut Where the Organization Cuts</span><span data-zh>1. 服务边界：沿组织结构切分</span></h2>
+
+    <p>
+      <span data-en>The worst service boundaries I've seen were drawn around technical layers: an "API service," a "database service," a "notification service." These create cross-team coupling on every feature. The best boundaries follow domain ownership — one team, one bounded context, one deployable unit that owns its data.</span>
+      <span data-zh>我见过最糟糕的服务边界是沿技术层划分的：一个"API 服务"、一个"数据库服务"、一个"通知服务"。这导致每个功能都产生跨团队耦合。最好的边界遵循领域所有权——一个团队、一个限界上下文、一个拥有自己数据的可部署单元。</span>
+    </p>
+
+    <p>
+      <span data-en>In a multi-region financial environment, we had a painful lesson early on. A shared "user service" owned by no one became the bottleneck for every initiative. Three teams needed different views of user data. Schema changes required coordinating across all three. The fix wasn't a bigger user service — it was splitting the concept: <strong>identity</strong> (auth, credentials), <strong>profile</strong> (preferences, settings), and <strong>entitlements</strong> (what you're allowed to do in which jurisdiction). Each owned by a team that actually understood the domain.</span>
+      <span data-zh>在多区域金融环境中，我们很早就吃了一个痛苦的教训。一个无人负责的共享"用户服务"成了每个项目的瓶颈。三个团队需要不同的用户数据视图。Schema 变更需要三方协调。解决方案不是做一个更大的用户服务——而是拆分概念：<strong>身份</strong>（认证、凭证）、<strong>画像</strong>（偏好、设置）和<strong>权限</strong>（在哪个管辖区可以做什么）。每个由真正理解该领域的团队拥有。</span>
+    </p>
+
+    <p>
+      <span data-en>The heuristic I use: <strong>if changing a field in Service A routinely requires a coordinated deploy of Service B, the boundary is in the wrong place.</strong> Data duplication across services is fine — coupling is not.</span>
+      <span data-zh>我用的判断标准：<strong>如果修改服务 A 的一个字段通常需要服务 B 协调部署，那边界就划错了。</strong>跨服务的数据冗余没问题——耦合才是问题。</span>
+    </p>
+
+    <!-- Section 2: API Design -->
+    <h2><span data-en>2. API Design: Contracts, Not Endpoints</span><span data-zh>2. API 设计：契约，而非端点</span></h2>
+
+    <p>
+      <span data-en>An API is a contract. Once published, it's expensive to change. The patterns that have saved us the most pain:</span>
+      <span data-zh>API 是一份契约。一旦发布，变更成本极高。以下模式帮我们避免了最多的痛苦：</span>
+    </p>
+
+    <p>
+      <span data-en><strong>Version in the path, not the header.</strong> We tried Accept header versioning early on. It was technically cleaner but operationally invisible — you couldn't tell which version a request targeted from access logs alone. Path versioning (<code>/v2/entitlements</code>) is uglier but greppable, loggable, and routeable at the gateway layer without custom logic.</span>
+      <span data-zh><strong>版本放路径里，不放 Header。</strong> 我们早期试过 Accept Header 版本控制。技术上更优雅，但运维上不可见——仅从访问日志无法判断请求目标版本。路径版本（<code>/v2/entitlements</code>）更丑但可 grep、可记录、可在网关层路由而不需要自定义逻辑。</span>
+    </p>
+
+    <p>
+      <span data-en><strong>Additive changes only.</strong> New fields are always optional with defaults. Removing a field means: deprecation header for 2 sprints → metric to confirm zero usage → remove. In September 2022, we removed a "unused" <code>jurisdiction_code</code> field from the entitlements API. Our real-time usage metrics showed zero consumers. What we missed: the entitlement-sync service's monthly reconciliation batch — which only ran on the first business day of each month — depended on that field to match HK entity records. We found out on October 3rd when three downstream regulatory reports showed zero balances for all Hong Kong entities. The fix took two days: reintroduce the field behind a feature flag, backfill the missing October 1st reconciliation run, and manually verify each affected report before resubmission to the regulator. After that, our deprecation checklist added a mandatory step: query the batch scheduler for any job that references the target field, regardless of what real-time metrics say.</span>
+      <span data-zh><strong>只做加法变更。</strong> 新字段始终可选且有默认值。删除字段意味着：弃用 Header 持续 2 个 Sprint → 指标确认零使用量 → 移除。2022 年 9 月，我们从 entitlements API 中移除了一个"未使用"的 <code>jurisdiction_code</code> 字段。实时使用指标显示零消费者。我们遗漏的是：entitlement-sync 服务的月度对账批处理——只在每月第一个工作日运行——依赖该字段匹配香港实体记录。10 月 3 日我们才发现，三份下游监管报告显示所有香港实体余额为零。修复花了两天：在 feature flag 后重新引入该字段，回填缺失的 10 月 1 日对账运行，并在重新提交给监管机构之前逐份手动验证受影响的报告。此后，我们的弃用检查清单增加了一个强制步骤：查询批处理调度器中是否有任何引用目标字段的作业，无论实时指标显示什么。</span>
+    </p>
+
+    <p>
+      <span data-en><strong>Response envelopes with metadata.</strong> Every response carries <code>request_id</code>, <code>timestamp</code>, and <code>deprecation</code> fields. This sounds like overhead until you're debugging a production issue at 2 AM and the only artifact you have is a response payload someone pasted into a ticket.</span>
+      <span data-zh><strong>带元数据的响应信封。</strong> 每个响应携带 <code>request_id</code>、<code>timestamp</code> 和 <code>deprecation</code> 字段。这听起来像额外开销，直到凌晨 2 点你在调试生产问题时，唯一的证据是别人贴在工单里的一个响应体。</span>
+    </p>
+
+    <p>
+      <span data-en><strong>Schema validation at the boundary.</strong> We validate incoming payloads strictly (reject unknown fields, enforce types) but validate outgoing payloads leniently (extra fields are tolerated). This follows Postel's Law but only at the ingress — internally, strictness catches bugs early.</span>
+      <span data-zh><strong>在边界做 Schema 校验。</strong> 我们对入站请求严格校验（拒绝未知字段、强制类型），但对出站响应宽容（容忍额外字段）。这遵循 Postel 定律但仅限入口——内部的严格性能更早捕获 Bug。</span>
+    </p>
+
+    <!-- Section 3: Event-Driven Architecture -->
+    <h2><span data-en>3. Event-Driven Architecture: The Seductive Trap and How to Use It Anyway</span><span data-zh>3. 事件驱动架构：诱人的陷阱与正确使用方式</span></h2>
+
+    <p>
+      <span data-en>Event-driven architecture is powerful and dangerous. Powerful because it decouples producers from consumers. Dangerous because it makes the system's behavior non-linear and hard to reason about. I've seen teams adopt Kafka for everything and end up with a distributed system they can't debug.</span>
+      <span data-zh>事件驱动架构既强大又危险。强大在于解耦了生产者和消费者。危险在于让系统行为变得非线性且难以推理。我见过团队把 Kafka 用在所有地方，最终得到一个无法调试的分布式系统。</span>
+    </p>
+
+    <p>
+      <span data-en>The patterns that worked for us:</span>
+      <span data-zh>对我们有效的模式：</span>
+    </p>
+
+    <p>
+      <span data-en><strong>Commands are synchronous, events are asynchronous.</strong> "Create this order" is a command — the caller needs to know if it succeeded. "An order was created" is an event — downstream consumers react at their own pace. Mixing these up (firing a command as an event and polling for the result) creates brittle, hard-to-trace flows.</span>
+      <span data-zh><strong>命令走同步，事件走异步。</strong>"创建这个订单"是命令——调用方需要知道是否成功。"订单已创建"是事件——下游消费者按自己的节奏反应。混淆两者（把命令当事件发送然后轮询结果）会产生脆弱且难追踪的流程。</span>
+    </p>
+
+    <p>
+      <span data-en><strong>Events carry IDs, not payloads.</strong> Early on, we stuffed full objects into events. Then a schema change in the producer broke every consumer simultaneously. Now events carry entity IDs and a change type. Consumers fetch the current state from the authoritative service if they need details. Yes, this adds a network call. No, it hasn't been a bottleneck — and the operational simplicity is worth it.</span>
+      <span data-zh><strong>事件携带 ID，不携带完整载荷。</strong> 早期我们把完整对象塞进事件。然后生产者的一次 Schema 变更同时搞崩了所有消费者。现在事件只携带实体 ID 和变更类型。消费者如果需要详情就从权威服务获取当前状态。是的，这多了一次网络调用。不，它没有成为瓶颈——运维上的简洁性值得这个代价。</span>
+    </p>
+
+    <p>
+      <span data-en><strong>Dead letter queues are not optional.</strong> Every consumer has a DLQ. Every DLQ has an alert. Every alert has a runbook. An event that fails processing three times goes to the DLQ and triggers a page. We review DLQs weekly even when they're empty — the review itself is a forcing function for keeping runbooks current.</span>
+      <span data-zh><strong>死信队列不是可选的。</strong> 每个消费者都有 DLQ。每个 DLQ 都有告警。每个告警都有运维手册。处理失败三次的事件进入 DLQ 并触发呼叫。我们每周审查 DLQ，即使是空的——审查本身是保持运维手册更新的强制机制。</span>
+    </p>
+
+    <p>
+      <span data-en><strong>Consumer lag is a first-class metric.</strong> If your event consumer falls behind, downstream state becomes stale silently. We alert on consumer lag relative to the producer's throughput, not absolute offset. A consumer that's 1000 messages behind at 10 msg/s is fine. The same consumer at 10,000 msg/s is an incident.</span>
+      <span data-zh><strong>消费者延迟是一等指标。</strong> 如果事件消费者落后了，下游状态会悄无声息地过期。我们根据生产者吞吐量的相对延迟告警，而非绝对偏移量。10 msg/s 时落后 1000 条没问题。10,000 msg/s 时同样的消费者就是事故了。</span>
+    </p>
+
+    <!-- Section 4: Failure Handling -->
+    <h2><span data-en>4. Failure Handling: Expect Degradation, Not Outages</span><span data-zh>4. 故障处理：预期降级，而非宕机</span></h2>
+
+    <p>
+      <span data-en>In a monolith, failure is binary — the app is up or it's down. In a distributed system, failure is partial and continuous. Something is always degraded. The question is whether your users notice.</span>
+      <span data-zh>在单体应用中，故障是二元的——应用要么正常要么挂了。在分布式系统中，故障是局部的、持续的。总有什么地方在降级。问题是你的用户是否感知到。</span>
+    </p>
+
+    <p>
+      <span data-en><strong>Circuit breakers with fallback hierarchies.</strong> We use a three-level fallback: primary service → cached response (with staleness header) → static default. The circuit breaker trips after 5 consecutive failures or >50% error rate in a 30-second window. The part people skip: testing the fallback path with the same rigor as the primary. We run monthly "dependency down" drills where we deliberately trip circuit breakers in staging and verify the fallback chain.</span>
+      <span data-zh><strong>带降级层次的熔断器。</strong> 我们用三级降级：主服务 → 缓存响应（带过期 Header） → 静态默认值。熔断器在连续 5 次失败或 30 秒窗口内 >50% 错误率时触发。关键洞察：降级路径必须和主路径一样严格测试。我们每月做"依赖下线"演练，在预发环境故意触发熔断器并验证降级链。</span>
+    </p>
+
+    <p>
+      <span data-en><strong>Timeouts are non-negotiable.</strong> Every outbound call has a timeout. Every timeout has a budget. If Service A calls B (2s timeout) which calls C (3s timeout), A's total timeout must account for the chain, or A's caller will time out first and retry, creating cascading load. We enforce timeout budgets at the gateway: the request carries a deadline, and each hop deducts its own latency. If the remaining budget is too low, the hop returns a cached or default response rather than making a doomed call.</span>
+      <span data-zh><strong>超时不可妥协。</strong> 每个外部调用都有超时。每个超时都有预算。如果服务 A 调 B（2s 超时）再调 C（3s 超时），A 的总超时必须考虑链路，否则 A 的调用方会先超时并重试，造成级联负载。我们在网关层强制超时预算：请求携带截止时间，每一跳扣除自身延迟。如果剩余预算过低，该跳返回缓存或默认响应而非发起注定失败的调用。</span>
+    </p>
+
+    <p>
+      <span data-en><strong>Retry with jitter, not retry with hope.</strong> Exponential backoff with jitter is table stakes. What we added: a retry budget per service per minute. If Service B is down and 50 callers all retry 3 times each, you've turned a single-service failure into a 150-request thundering herd. Our retry budget caps total retries at 10% of normal traffic. Past that, the circuit breaker takes over.</span>
+      <span data-zh><strong>带抖动重试，而非盲目重试。</strong> 指数退避加抖动是基本要求。我们额外加了：每服务每分钟的重试预算。如果服务 B 挂了，50 个调用方各重试 3 次，你就把单服务故障变成了 150 个请求的惊群效应。我们的重试预算把总重试量限制在正常流量的 10%。超过后熔断器接管。</span>
+    </p>
+
+    <p>
+      <span data-en><strong>Idempotency keys everywhere.</strong> In a financial system, "the request might have succeeded" is the worst state. Every mutating operation accepts an idempotency key. The server stores the key and result for 24 hours. If the same key arrives again, it returns the stored result without re-executing. This turns "did it work?" retries from dangerous into safe.</span>
+      <span data-zh><strong>幂等键无处不在。</strong> 在金融系统中，"请求可能成功了"是最糟糕的状态。每个变更操作接受幂等键。服务端存储键和结果 24 小时。如果相同的键再次到达，返回存储的结果而不重新执行。这让"成功了吗？"的重试从危险变成安全。</span>
+    </p>
+
+    <!-- Section 5: Observability -->
+    <h2><span data-en>5. Observability: SLOs First, Dashboards Second</span><span data-zh>5. 可观测性：SLO 优先，仪表盘其次</span></h2>
+
+    <p>
+      <span data-en>Most teams start observability backwards: install Prometheus, create dashboards, add alerts on CPU/memory/error counts. Then they drown in alerts that don't correlate to user impact. The right order is: define SLOs → derive SLIs → alert on burn rate → build dashboards for investigation.</span>
+      <span data-zh>大多数团队做可观测性的顺序是反的：安装 Prometheus，创建仪表盘，对 CPU/内存/错误数加告警。然后淹没在与用户影响无关的告警中。正确的顺序是：定义 SLO → 推导 SLI → 对消耗速率告警 → 构建用于排查的仪表盘。</span>
+    </p>
+
+    <p>
+      <span data-en><strong>SLOs tied to user-facing behavior.</strong> "99.9% of API requests complete in under 500ms" is an SLO. "CPU stays under 80%" is not — it's a capacity indicator that may or may not affect users. We define SLOs for latency (p50, p95, p99), availability (successful responses / total requests), and correctness (responses matching validation rules). Each SLO has an error budget. When the budget is exhausted, the team shifts from feature work to reliability work. No negotiation.</span>
+      <span data-zh><strong>SLO 绑定用户可感知行为。</strong>"99.9% 的 API 请求在 500ms 内完成"是 SLO。"CPU 保持在 80% 以下"不是——它是容量指标，可能与用户体验有关也可能无关。我们为延迟（p50、p95、p99）、可用性（成功响应 / 总请求）和正确性（响应匹配校验规则）定义 SLO。每个 SLO 有错误预算。预算耗尽时，团队从功能开发转向可靠性工作。没有商量余地。</span>
+    </p>
+
+    <p>
+      <span data-en><strong>Burn-rate alerts, not threshold alerts.</strong> A threshold alert ("error rate > 1%") fires on transient spikes and creates noise. A burn-rate alert ("at the current error rate, we'll exhaust our monthly error budget in 6 hours") fires on sustained degradation — the kind that actually matters. We use multi-window burn rates: a fast window (5 min) catches sudden failures, a slow window (1 hour) catches gradual degradation. Both must fire to page someone.</span>
+      <span data-zh><strong>消耗速率告警，而非阈值告警。</strong> 阈值告警（"错误率 > 1%"）在瞬时毛刺时触发并制造噪音。消耗速率告警（"按当前错误率，6 小时内将耗尽月度错误预算"）在持续降级时触发——真正重要的那种。我们用多窗口消耗速率：快窗口（5 分钟）捕捉突发故障，慢窗口（1 小时）捕捉渐进降级。两者都触发才呼叫值班人员。</span>
+    </p>
+
+    <p>
+      <span data-en><strong>Distributed tracing as the investigation backbone.</strong> We instrument every service with OpenTelemetry. Every request gets a trace ID that propagates across HTTP, gRPC, and message queues. When an SLO alert fires, the first action is always: pull the slowest/failing traces from the burn window, look at the span waterfall, identify which service or dependency is the bottleneck. Without tracing, debugging a distributed system is archaeology. With tracing, it's engineering.</span>
+      <span data-zh><strong>分布式追踪作为排查骨架。</strong> 我们用 OpenTelemetry 给每个服务埋点。每个请求获得一个 Trace ID，跨 HTTP、gRPC 和消息队列传播。SLO 告警触发时，第一步始终是：从消耗窗口拉出最慢/失败的 Trace，查看 Span 瀑布图，定位哪个服务或依赖是瓶颈。没有 Tracing，调试分布式系统是考古。有了 Tracing，才是工程。</span>
+    </p>
+
+    <p>
+      <span data-en><strong>Structured logging with correlation.</strong> Logs carry <code>trace_id</code>, <code>span_id</code>, <code>user_id</code>, and <code>request_id</code>. Every log line is JSON. We never log free-form strings in production — they're unsearchable, un-aggregatable, and useless at scale. The discipline is annoying until the first time you run <code>trace_id="abc123"</code> across all services and get a complete story in 10 seconds.</span>
+      <span data-zh><strong>带关联的结构化日志。</strong> 日志携带 <code>trace_id</code>、<code>span_id</code>、<code>user_id</code> 和 <code>request_id</code>。每行日志都是 JSON。我们在生产中从不记录自由格式字符串——它们不可搜索、不可聚合、在规模下毫无用处。这种纪律令人烦恼，直到你第一次用 <code>trace_id="abc123"</code> 跨所有服务查询，10 秒内获得完整故事。</span>
+    </p>
+
+    <!-- Section 6: Data Ownership -->
+    <h2><span data-en>6. Data Ownership and Consistency: Pick Your Battles</span><span data-zh>6. 数据所有权与一致性：选择你的战场</span></h2>
+
+    <p>
+      <span data-en>In a distributed system, strong consistency everywhere is either impossible (CAP) or too expensive (latency, availability). The practical approach is to classify data by consistency requirements and apply different strategies:</span>
+      <span data-zh>在分布式系统中，处处强一致性要么不可能（CAP），要么代价太高（延迟、可用性）。务实的做法是按一致性需求分类数据，应用不同策略：</span>
+    </p>
+
+    <p>
+      <span data-en><strong>Financial transactions: strong consistency.</strong> Account balances, trade executions, settlement records — these use synchronous writes with database transactions. We accept the latency cost because an inconsistent balance is a regulatory violation, not a UX annoyance.</span>
+      <span data-zh><strong>金融交易：强一致性。</strong> 账户余额、交易执行、结算记录——使用数据库事务的同步写入。我们接受延迟成本，因为不一致的余额是监管违规，不是用户体验瑕疵。</span>
+    </p>
+
+    <p>
+      <span data-en><strong>User-facing reads: eventual consistency with staleness bounds.</strong> Profile data, dashboard metrics, notification counts — these can be seconds stale. We serve from read replicas or caches with explicit TTLs. The key: every stale response carries a <code>data_as_of</code> timestamp so the client can decide whether to show it or refetch.</span>
+      <span data-zh><strong>面向用户的读取：带过期边界的最终一致性。</strong> 画像数据、仪表盘指标、通知计数——可以有秒级延迟。从只读副本或带明确 TTL 的缓存提供服务。关键：每个过期响应携带 <code>data_as_of</code> 时间戳，客户端可以决定展示它还是重新获取。</span>
+    </p>
+
+    <p>
+      <span data-en><strong>Cross-service state: saga pattern with compensation.</strong> When a workflow spans multiple services (e.g., "create order → reserve inventory → charge payment"), we use a saga with compensating actions. If payment fails, the saga reverses the inventory reservation. Each step is idempotent. The saga coordinator persists its state so it can resume after a crash. We learned the hard way that the compensation logic is harder to get right than the happy path — test it with the same rigor.</span>
+      <span data-zh><strong>跨服务状态：带补偿的 Saga 模式。</strong> 当工作流跨多个服务（如"创建订单 → 预留库存 → 扣款"），我们使用带补偿动作的 Saga。如果支付失败，Saga 撤销库存预留。每步都幂等。Saga 协调器持久化状态以便崩溃后恢复。我们痛苦地学到补偿逻辑比正常路径更难写对——用同样的严格度测试它。</span>
+    </p>
+
+    <!-- Section 7: Production Readiness -->
+    <h2><span data-en>7. Production Readiness: The Checklist That Earns Its Keep</span><span data-zh>7. 生产就绪：一份物有所值的检查清单</span></h2>
+
+    <p>
+      <span data-en>Every service we deploy goes through a production readiness review. Not a rubber stamp — a genuine technical review where the team demonstrates they've thought about failure. The checklist:</span>
+      <span data-zh>我们部署的每个服务都经过生产就绪评审。不是走过场——是真正的技术评审，团队需要证明他们考虑了故障场景。检查清单：</span>
+    </p>
+
+    <p>
+      <span data-en><strong>SLOs defined and instrumented.</strong> Not just documented — actually emitting metrics that SLO alerts consume. We check this by deliberately injecting a slow response in staging and verifying the alert fires.</span>
+      <span data-zh><strong>SLO 已定义且已埋点。</strong> 不只是写了文档——确实在发出 SLO 告警消费的指标。我们通过在预发环境故意注入慢响应来验证告警是否触发。</span>
+    </p>
+
+    <p>
+      <span data-en><strong>Graceful degradation tested.</strong> Kill each dependency one at a time. Does the service degrade gracefully or crash? We discovered a service that logged an error and continued when its cache was down — but the logging was synchronous and the log volume was so high it saturated the disk, causing the service to crash anyway. Graceful degradation means the <em>entire</em> fallback path works, including second-order effects.</span>
+      <span data-zh><strong>优雅降级已测试。</strong> 逐一杀掉每个依赖。服务是优雅降级还是崩溃？我们发现过一个服务在缓存宕掉时记录错误并继续运行——但日志是同步写入的，日志量大到打满磁盘，最终服务还是崩了。优雅降级意味着<em>整条</em>降级路径都能工作，包括二阶效应。</span>
+    </p>
+
+    <p>
+      <span data-en><strong>Runbooks for every alert.</strong> If an alert doesn't have a runbook, either the alert is unnecessary or the runbook is missing. Both are bugs. Our runbooks follow a strict format: symptom → likely causes (ordered by probability) → diagnostic commands → remediation steps → escalation path. We time-box runbook creation to 30 minutes — if it takes longer, the alert is too complex and should be split.</span>
+      <span data-zh><strong>每个告警都有运维手册。</strong> 如果告警没有运维手册，要么告警不必要，要么手册缺失。两种都是 Bug。我们的运维手册遵循严格格式：症状 → 可能原因（按概率排序）→ 诊断命令 → 修复步骤 → 升级路径。运维手册创建限时 30 分钟——超过说明告警太复杂，需要拆分。</span>
+    </p>
+
+    <p>
+      <span data-en><strong>Deployment rollback tested.</strong> Can you roll back to the previous version in under 5 minutes? Does the rollback handle schema changes (both forward and backward compatible)? We deploy with Kubernetes rolling updates and keep the previous ReplicaSet warm for 30 minutes after each deploy. Rollback is one command.</span>
+      <span data-zh><strong>部署回滚已测试。</strong> 能在 5 分钟内回滚到上个版本吗？回滚能处理 Schema 变更吗（前向和后向兼容）？我们用 Kubernetes 滚动更新部署，每次部署后保持上一个 ReplicaSet 热备 30 分钟。回滚只需一条命令。</span>
+    </p>
+
+    <p>
+      <span data-en><strong>Load testing with production-like traffic.</strong> Not synthetic benchmarks — replayed production traffic (with PII stripped). We capture traffic patterns for a week, replay at 2x during off-peak hours, and look for nonlinear degradation. A service that's fine at 1x and fails at 1.5x has a cliff, not a limit.</span>
+      <span data-zh><strong>用生产级流量做负载测试。</strong> 不是合成基准——是回放的生产流量（已脱敏）。我们捕获一周的流量模式，在低峰期以 2 倍回放，寻找非线性降级。在 1 倍正常但 1.5 倍时崩溃的服务有的是悬崖，不是极限。</span>
+    </p>
+
+    <!-- Section 8: Incident Response -->
+    <h2><span data-en>8. Incident Response: Learning from Production</span><span data-zh>8. 事故响应：从生产中学习</span></h2>
+
+    <p>
+      <span data-en>Incidents are inevitable. What matters is MTTR (Mean Time to Recovery) and whether you learn from them. Our incident response framework:</span>
+      <span data-zh>事故不可避免。重要的是 MTTR（平均恢复时间）以及是否从中学习。我们的事故响应框架：</span>
+    </p>
+
+    <p>
+      <span data-en><strong>Severity levels tied to SLO impact.</strong> S1: SLO breach affecting >10% of users. S2: SLO at risk, burn rate elevated. S3: degradation detected, no SLO impact yet. S4: anomaly worth investigating. Only S1 and S2 page the on-call. S3 and S4 go to the team's async channel. This eliminates the "everything is S1" problem — the SLO math decides severity, not human judgment in a stressful moment.</span>
+      <span data-zh><strong>严重级别绑定 SLO 影响。</strong> S1：SLO 违约影响 >10% 用户。S2：SLO 有风险，消耗速率升高。S3：检测到降级，尚未影响 SLO。S4：值得调查的异常。只有 S1 和 S2 呼叫值班。S3 和 S4 发到团队异步频道。这消除了"一切都是 S1"的问题——SLO 数学决定严重性，不是紧张时刻的人工判断。</span>
+    </p>
+
+    <p>
+      <span data-en><strong>Blameless postmortems with action items.</strong> Every S1/S2 gets a postmortem within 3 business days. The format: timeline → root cause → contributing factors → action items with owners and deadlines. "Be more careful" is not an action item. "Add circuit breaker to Service B's call to Service C with 30s timeout and fallback to cached response — owner: @alice, due: next sprint" is. We track postmortem action completion rate as a team metric. Below 80% means we're accumulating risk.</span>
+      <span data-zh><strong>无指责复盘并带行动项。</strong> 每个 S1/S2 在 3 个工作日内复盘。格式：时间线 → 根因 → 促成因素 → 带负责人和截止日期的行动项。"以后注意"不是行动项。"为服务 B 调用服务 C 添加熔断器，30s 超时，降级到缓存响应——负责人：@alice，截止：下个 Sprint"才是。我们把复盘行动项完成率作为团队指标。低于 80% 意味着在积累风险。</span>
+    </p>
+
+    <!-- Section 9: Closing -->
+    <h2><span data-en>The Thread That Ties These Together</span><span data-zh>贯穿这些模式的主线</span></h2>
+
+    <p>
+      <span data-en>Looking back at these patterns, a theme emerges: <strong>design for the failure case first</strong>. Service boundaries that prevent cascading ownership confusion. APIs with deprecation protocols because fields <em>will</em> be removed. Event consumers with DLQs because messages <em>will</em> fail. Circuit breakers with tested fallbacks because dependencies <em>will</em> go down. SLOs with error budgets because perfection <em>is</em> impossible.</span>
+      <span data-zh>回顾这些模式，一条主线浮现：<strong>先为故障场景设计</strong>。防止级联所有权混乱的服务边界。带弃用协议的 API，因为字段<em>一定会</em>被删除。带 DLQ 的事件消费者，因为消息<em>一定会</em>失败。带已测试降级的熔断器，因为依赖<em>一定会</em>挂掉。带错误预算的 SLO，因为完美<em>不</em>可能。</span>
+    </p>
+
+    <p>
+      <span data-en>The agent platform I describe in my other articles runs on these same patterns. The RAG pipeline uses the event-driven architecture from Section 3 — documents are ingested as events, consumers build vector indexes at their own pace, and dead letter queues catch parsing failures. The <a href="deterministic-gating.html">gating system's</a> audit trail uses the structured logging from Section 5, with trace IDs propagating from user request through gate decision to final output. The circuit breakers protect LLM API calls the same way they protect any external dependency — with fallback hierarchies, retry budgets, and timeout chains. These aren't two separate areas of expertise — they're the same system at different layers of abstraction.</span>
+      <span data-zh>我在其他文章中描述的 Agent 平台就运行在这些相同的模式之上。RAG 管道使用了第 3 节的事件驱动架构——文档作为事件被摄入，消费者按自己的节奏构建向量索引，死信队列捕获解析失败。<a href="deterministic-gating.html">门控系统</a>的审计追踪使用了第 5 节的结构化日志，Trace ID 从用户请求贯穿门控决策到最终输出。熔断器保护 LLM API 调用的方式与保护任何外部依赖一样——带降级层次、重试预算和超时链。这不是两个独立的专业领域——它们是同一个系统在不同抽象层的体现。</span>
+    </p>
+
+    <p>
+      <span data-en>None of this is novel. These are well-known patterns. The difference between theory and production is the <em>discipline</em> to apply them consistently — not just in the architecture doc, but in every PR review, every deploy checklist, every incident postmortem. Distributed systems don't fail because of exotic edge cases. They fail because someone skipped the timeout, didn't test the fallback, or removed a "unused" field without checking the monthly batch job.</span>
+      <span data-zh>这些都不新鲜。都是众所周知的模式。理论和生产之间的区别在于<em>纪律</em>——持续一致地应用它们——不仅在架构文档中，而是在每次 PR 审查、每份部署检查清单、每次事故复盘中。分布式系统不是因为奇异的边界情况而失败。它们失败是因为有人跳过了超时、没测降级路径、或者删掉了"未使用"的字段却没检查月度批处理任务。</span>
+    </p>
+
+    <p>
+      <span data-en>The best distributed systems engineers I've worked with share one trait: they've been paged enough times to respect the fundamentals. Not because they read about them — because they've debugged the consequences of ignoring them at 3 AM.</span>
+      <span data-zh>我共事过的最好的分布式系统工程师有一个共同特质：他们被呼叫的次数足够多，以至于敬畏基本功。不是因为读过这些模式——而是因为凌晨 3 点调试过忽略它们的后果。</span>
+    </p>
+  </main>
+
+  <script src="../js/main.js"></script>
+</body>
+</html>

@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en" data-lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI-Native Engineering in Practice — Ming Zhou</title>
+  <meta name="description" content="How I use AI tools across coding, code review, testing, debugging, documentation, and design exploration — and how to help teams adopt these workflows without the hype.">
+  <link rel="stylesheet" href="../css/style.css">
+</head>
+<body>
+
+  <nav class="nav scrolled" id="nav">
+    <div class="nav-inner">
+      <a class="nav-logo" href="../">MZ<span class="nav-logo-dot">.</span></a>
+      <div class="nav-links" id="navLinks">
+        <a href="../#projects"><span data-en>Projects</span><span data-zh>项目</span></a>
+        <a href="../#writing"><span data-en>Writing</span><span data-zh>文章</span></a>
+        <a href="../#about"><span data-en>About</span><span data-zh>关于</span></a>
+        <a href="../#contact"><span data-en>Contact</span><span data-zh>联系</span></a>
+        <button class="lang-toggle" id="langToggle" aria-label="Toggle language">
+          <span data-en>中文</span><span data-zh>EN</span>
+        </button>
+      </div>
+      <button class="nav-hamburger" id="navHamburger" aria-label="Menu">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+  </nav>
+
+  <main class="article-page">
+    <a href="../#writing" class="article-page-back">&larr; <span data-en>Back to all writing</span><span data-zh>返回文章列表</span></a>
+
+    <div class="article-page-meta">
+      <span>2025</span>
+      <span><span data-en>12 min read</span><span data-zh>12 分钟阅读</span></span>
+    </div>
+
+    <h1>
+      <span data-en>AI-Native Engineering in Practice: How I Use AI Tools Across the Full Development Cycle</span>
+      <span data-zh>AI 原生工程实践：我如何在完整开发周期中使用 AI 工具</span>
+    </h1>
+
+    <p class="article-lead">
+      <span data-en>I use AI tools every day — not as a novelty, but as infrastructure. Claude Code for architecture exploration, multi-file refactors, and terminal-native workflows. OpenAI Codex for autonomous task execution in sandboxed environments. GitHub Copilot for line-level completion in the editor. Each tool has a sweet spot, and knowing where one ends and another begins is the difference between "AI-assisted" and "AI-native." Here's how these tools fit into each phase of real engineering work, and what I've learned about helping teams adopt them.</span>
+      <span data-zh>我每天都在使用 AI 工具——不是作为新鲜事物，而是作为基础设施。Claude Code 用于架构探索、多文件重构和终端原生工作流。OpenAI Codex 用于沙箱环境中的自主任务执行。GitHub Copilot 用于编辑器内的行级补全。每个工具都有自己的甜蜜点，知道一个工具的边界在哪里、另一个从哪里开始，是"AI 辅助"和"AI 原生"之间的差别。以下是这些工具如何融入真实工程工作的每个阶段，以及我在帮助团队采纳它们时学到的东西。</span>
+    </p>
+
+    <h2><span data-en>Coding: Three Tools, Three Scopes</span><span data-zh>编码：三个工具，三个范围</span></h2>
+
+    <p>
+      <span data-en>The biggest mistake I see engineers make is using one AI tool for everything. Each tool is optimized for a different scope of work:</span>
+      <span data-zh>我见过工程师犯的最大错误是用一个 AI 工具做所有事情。每个工具针对不同范围的工作进行了优化：</span>
+    </p>
+
+    <ul>
+      <li>
+        <span data-en><strong>GitHub Copilot</strong> — Line and block level. It's fastest when the pattern is clear: writing a function that follows an established convention, filling in test cases that mirror existing ones, completing boilerplate. I keep it on by default. The acceptance rate is maybe 30-40%, but the accepted completions save real time because they're exactly the low-creativity work that breaks flow.</span>
+        <span data-zh><strong>GitHub Copilot</strong>——行级和块级。在模式明确时最快：编写遵循既有约定的函数、填充镜像现有用例的测试、补完模板代码。我默认开启。接受率大约 30-40%，但被接受的补全确实节省时间，因为它们恰好是那些打断心流的低创造性工作。</span>
+      </li>
+      <li>
+        <span data-en><strong>OpenAI Codex</strong> — Task and feature level. Codex runs in a cloud sandbox with full environment access — it can read your repo, install dependencies, run tests, and produce a complete changeset. I use it for well-scoped, self-contained tasks: "add input validation to all API endpoints," "generate integration tests for the payment module," "migrate this config from YAML to TOML." The sandboxed execution means it can try, fail, and retry without risk to my local environment. The key constraint: the task must be clearly defined. Codex excels at autonomous execution of bounded work; it struggles with ambiguous or open-ended design decisions.</span>
+        <span data-zh><strong>OpenAI Codex</strong>——任务级和功能级。Codex 在云端沙箱中运行，拥有完整的环境访问权限——它可以读取你的仓库、安装依赖、运行测试，并产出完整的变更集。我用它处理范围明确、自包含的任务："给所有 API 端点加输入验证"、"给支付模块生成集成测试"、"把配置从 YAML 迁移到 TOML"。沙箱执行意味着它可以尝试、失败、重试而不影响我的本地环境。关键约束：任务必须明确定义。Codex 擅长有界工作的自主执行；它在模糊或开放性设计决策上力不从心。</span>
+      </li>
+      <li>
+        <span data-en><strong>Claude Code</strong> — Project and architecture level. This is the heavy tool. Multi-file refactors, codebase-wide analysis, "find every place we handle authentication and tell me if they're consistent." Claude Code operates in the terminal with full project context — it reads files, runs commands, and maintains conversation state across a session. The persistent session mode (stream-json) is critical: it keeps context alive, so follow-up questions build on prior understanding instead of starting from zero. Where Codex is fire-and-forget, Claude Code is conversational — I iterate with it in real time, refining direction as I learn more about the problem.</span>
+        <span data-zh><strong>Claude Code</strong>——项目级和架构级。这是重型工具。多文件重构、全代码库分析、"找到我们处理认证的每个地方，告诉我它们是否一致"。Claude Code 在终端中运行，拥有完整的项目上下文——它读取文件、执行命令，并在整个会话中保持对话状态。持久会话模式（stream-json）至关重要：它保持上下文活跃，后续问题建立在先前理解之上，而不是从零开始。Codex 是"发射后不管"，Claude Code 是对话式的——我与它实时迭代，随着对问题的深入了解调整方向。</span>
+      </li>
+    </ul>
+
+    <p>
+      <span data-en>None of these tools are free of frustration. Codex's sandboxed execution burned me hard once: I needed to add webhook signature verification to our notification service, a task that should have been 10 minutes of work. But the sandbox couldn't access our internal package registry, so Codex kept failing on <code>pip install</code> for our shared crypto utils library. I ended up spending 45 minutes manually copying dependency stubs into the sandbox just to get it to run — and then the generated code used the stub interfaces instead of the real ones, so I had to rewrite half of it anyway. The "autonomous execution" selling point collapses the moment your codebase depends on anything private. And Copilot has a different failure mode: it confidently suggests patterns from older versions of internal frameworks. We had a junior engineer ship a PR using our deprecated <code>@auth_required</code> decorator — which Copilot kept autocompleting — instead of the new middleware-based auth pattern we'd migrated to three months earlier. The suggestion was syntactically perfect, passed type checking, and was completely wrong. Confident-but-stale is worse than no suggestion at all.</span>
+      <span data-zh>话虽如此，这些工具没有一个不让人抓狂的。Codex 的沙箱执行有一次狠狠坑了我：我需要给通知服务加 webhook 签名验证，本来应该是 10 分钟的活。但沙箱无法访问我们的内部包注册中心，Codex 在 <code>pip install</code> 我们的共享加密工具库时反复失败。我花了 45 分钟手动把依赖桩复制到沙箱里才让它跑起来——然后生成的代码用的是桩接口而不是真正的接口，结果我还得重写一半。"自主执行"的卖点在你的代码库依赖任何私有包的那一刻就崩塌了。Copilot 有另一种失败模式：它自信地建议内部框架旧版本的模式。我们有个初级工程师提交了一个 PR，用的是已弃用的 <code>@auth_required</code> 装饰器——Copilot 一直在自动补全它——而不是我们三个月前就已迁移过去的新的中间件认证模式。建议语法完美，通过了类型检查，但完全是错的。自信但过时比没有建议更糟糕。</span>
+    </p>
+
+    <p>
+      <span data-en>The principle: <strong>match tool scope to task scope.</strong> Using Claude Code to rename a variable is overkill. Using Copilot to plan a system refactor is underkill. The right tool at the right scope means less friction and better results.</span>
+      <span data-zh>原则：<strong>将工具范围匹配到任务范围。</strong>用 Claude Code 重命名一个变量是大材小用。用 Copilot 规划系统重构是力不从心。正确范围的正确工具意味着更少摩擦和更好结果。</span>
+    </p>
+
+    <h2><span data-en>Code Review: AI for Detection, Humans for Judgment</span><span data-zh>代码审查：AI 做检测，人做判断</span></h2>
+
+    <p>
+      <span data-en>Code review is where AI tools have the most underappreciated impact — not by replacing human reviewers, but by <strong>changing what humans spend their review time on.</strong></span>
+      <span data-zh>代码审查是 AI 工具影响最被低估的地方——不是取代人工审查者，而是<strong>改变人工将审查时间花在什么地方。</strong></span>
+    </p>
+
+    <p>
+      <span data-en>Before submitting a PR for human review, I run an AI pre-review pass. This catches the mechanical issues:</span>
+      <span data-zh>在提交 PR 进行人工审查之前，我运行一轮 AI 预审查。这捕获机械性问题：</span>
+    </p>
+
+    <ul>
+      <li><span data-en><strong>DDD layer violations</strong> — "This repository method is called directly from the controller, bypassing the application service." AI is tireless at checking every call path against the layer rules.</span><span data-zh><strong>DDD 分层违规</strong>——"这个 repository 方法从 controller 直接调用，绕过了 application service。"AI 不知疲倦地检查每条调用路径是否符合分层规则。</span></li>
+      <li><span data-en><strong>Security patterns</strong> — Unsanitized inputs, SQL concatenation, sensitive data in logs, missing auth checks. The same checklist a human would run, but faster and without fatigue.</span><span data-zh><strong>安全模式</strong>——未净化的输入、SQL 拼接、日志中的敏感数据、缺失的认证检查。与人工运行的同一份检查清单，但更快且不会疲劳。</span></li>
+      <li><span data-en><strong>Consistency checks</strong> — Naming conventions, error handling patterns, API contract alignment. "This endpoint returns errors as strings, but every other endpoint uses the standard ErrorResponse DTO."</span><span data-zh><strong>一致性检查</strong>——命名约定、错误处理模式、API 契约对齐。"这个端点以字符串返回错误，但其他所有端点都使用标准的 ErrorResponse DTO。"</span></li>
+    </ul>
+
+    <p>
+      <span data-en>By the time a human reviewer sees the PR, the mechanical issues are already fixed. The human can focus on what AI can't do well: <strong>does this design make sense? Is this the right abstraction? Will this be maintainable in six months?</strong> These are judgment calls that require understanding the codebase's history, the team's priorities, and the product direction. AI doesn't have that context.</span>
+      <span data-zh>当人工审查者看到 PR 时，机械性问题已经修复了。人工可以专注于 AI 做不好的事情：<strong>这个设计是否合理？这是正确的抽象吗？六个月后这还可维护吗？</strong>这些是需要理解代码库历史、团队优先级和产品方向的判断。AI 没有这个上下文。</span>
+    </p>
+
+    <p>
+      <span data-en>The result: review cycles got shorter, review quality went up (humans spend time on higher-leverage feedback), and fewer PRs bounce back for mechanical fixes.</span>
+      <span data-zh>结果：审查周期变短了，审查质量提高了（人工将时间花在更高杠杆的反馈上），更少的 PR 因为机械性修复被打回。</span>
+    </p>
+
+    <h2><span data-en>Testing: AI Generates the Skeleton, Humans Add the Edge Cases</span><span data-zh>测试：AI 生成骨架，人工补边界用例</span></h2>
+
+    <p>
+      <span data-en>AI-generated tests have a specific failure mode: they test the happy path thoroughly and miss every interesting edge case. This makes them useful but dangerous — they create a false sense of coverage.</span>
+      <span data-zh>AI 生成的测试有一个特定的失败模式：它们彻底测试了 happy path，却遗漏了每一个有趣的边界用例。这使它们有用但危险——它们造成了虚假的覆盖率感。</span>
+    </p>
+
+    <p>
+      <span data-en>My workflow:</span>
+      <span data-zh>我的工作流：</span>
+    </p>
+
+    <ol>
+      <li><span data-en><strong>AI generates the test skeleton</strong> — Given the function signature and its context, generate test cases for the main scenarios. This is the boilerplate work: setting up fixtures, writing the basic assertions, covering the obvious paths.</span><span data-zh><strong>AI 生成测试骨架</strong>——给定函数签名及其上下文，为主要场景生成测试用例。这是模板工作：设置 fixture、编写基本断言、覆盖明显路径。</span></li>
+      <li><span data-en><strong>I review and add edge cases manually</strong> — What happens with empty input? Concurrent access? Timezone boundaries? Permission edge cases? These require understanding the business domain, not just the code structure.</span><span data-zh><strong>我手动审查并添加边界用例</strong>——空输入会怎样？并发访问？时区边界？权限边界情况？这些需要理解业务领域，而不仅仅是代码结构。</span></li>
+      <li><span data-en><strong>AI fills in the implementation of my edge cases</strong> — Once I've described the edge case in a test name and a comment, AI is good at writing the actual assertion code. The creative part (identifying the edge case) is mine; the mechanical part (writing the test body) is AI's.</span><span data-zh><strong>AI 填充我的边界用例的实现</strong>——一旦我在测试名称和注释中描述了边界用例，AI 擅长编写实际的断言代码。创造性部分（识别边界用例）是我的；机械性部分（编写测试体）是 AI 的。</span></li>
+    </ol>
+
+    <p>
+      <span data-en>For agent workflows specifically, I use <strong>TDD-style verification assertions</strong> defined before execution. The planner writes the acceptance criteria ("after this step, config.py must exist and contain a Settings class"), and the harness runs it after the executor finishes. This is AI testing AI — but the test itself is deterministic code, not another LLM call.</span>
+      <span data-zh>对于 Agent 工作流，我使用在执行前定义的 <strong>TDD 风格验证断言</strong>。规划者编写验收标准（"这一步之后，config.py 必须存在并包含 Settings 类"），harness 在执行者完成后运行它。这是 AI 测试 AI——但测试本身是确定性代码，而不是另一个 LLM 调用。</span>
+    </p>
+
+    <h2><span data-en>Debugging: AI Reads the Traces, Humans Confirm the Root Cause</span><span data-zh>调试：AI 读 Trace，人工确认根因</span></h2>
+
+    <p>
+      <span data-en>Debugging is where AI saves the most time — not by fixing bugs, but by <strong>narrowing the search space.</strong></span>
+      <span data-zh>调试是 AI 节省最多时间的地方——不是通过修复 bug，而是通过<strong>缩小搜索空间。</strong></span>
+    </p>
+
+    <p>
+      <span data-en>When something breaks in production, the first step is always the same: read logs, read traces, read metrics, correlate timestamps. This is tedious, mechanical, and exactly what an LLM with a large context window excels at. I paste the relevant log segments into Claude Code and ask: "What's the sequence of events here? Where does it first go wrong?"</span>
+      <span data-zh>当生产环境出问题时，第一步总是相同的：读日志、读 trace、读指标、关联时间戳。这是乏味的、机械的，恰好是大上下文窗口的 LLM 擅长的。我把相关日志片段粘贴到 Claude Code 中问："这里的事件序列是什么？在哪里首先出错？"</span>
+    </p>
+
+    <p>
+      <span data-en>The AI produces a timeline hypothesis in seconds — work that would take me 15-30 minutes of manual log correlation. Critically, <strong>I treat this as a hypothesis, not a diagnosis.</strong> The AI might identify the right symptom but misattribute the cause. I verify against the code before making any change.</span>
+      <span data-zh>AI 在几秒内产生一个时间线假设——这项工作手动关联日志需要我 15-30 分钟。关键是，<strong>我将此视为假设，而非诊断。</strong>AI 可能识别了正确的症状但错误归因。我在做任何更改之前对照代码验证。</span>
+    </p>
+
+    <p>
+      <span data-en>A hard rule: <strong>AI never directly edits production code during incident response.</strong> It can read, analyze, and suggest. A human makes the change, reviews the diff, and deploys. The blast radius of an AI-generated fix in a production incident is too high to accept without human verification.</span>
+      <span data-zh>一条硬规则：<strong>AI 在事件响应期间永远不直接编辑生产代码。</strong>它可以读取、分析和建议。人工进行更改、审查 diff 并部署。在生产事件中 AI 生成修复的爆炸半径太大，不能在没有人工验证的情况下接受。</span>
+    </p>
+
+    <h2><span data-en>Documentation: AI Drafts, Humans Verify</span><span data-zh>文档：AI 起草，人工验证</span></h2>
+
+    <p>
+      <span data-en>Documentation is the most straightforward AI use case, and also the one where quality control matters most. AI-generated docs that are 95% correct are worse than no docs — they build false confidence.</span>
+      <span data-zh>文档是最直接的 AI 使用场景，也是质量控制最重要的场景。95% 正确的 AI 生成文档比没有文档更糟糕——它们建立了虚假的信心。</span>
+    </p>
+
+    <p>
+      <span data-en>My approach:</span>
+      <span data-zh>我的方法：</span>
+    </p>
+
+    <ul>
+      <li><span data-en><strong>API documentation</strong> — AI reads the code and generates the first draft. I verify every endpoint, every parameter, every response example against the actual implementation. The value is saving the typing, not the thinking.</span><span data-zh><strong>API 文档</strong>——AI 读代码生成初稿。我对照实际实现验证每个端点、每个参数、每个响应示例。价值在于节省打字，而非思考。</span></li>
+      <li><span data-en><strong>RFCs and design documents</strong> — I write the proposal myself, then use AI as an adversary: "Find the three weakest points in this design." "What will break if traffic doubles?" "Which assumption here is most likely to be wrong?" Using AI to stress-test your own thinking is more valuable than using it to generate the thinking in the first place.</span><span data-zh><strong>RFC 和设计文档</strong>——我自己写提案，然后用 AI 作为对手："找出这个设计中最弱的三个点。""如果流量翻倍什么会崩溃？""这里哪个假设最可能是错的？"用 AI 压力测试自己的思考比用它来生成思考更有价值。</span></li>
+      <li><span data-en><strong>Runbooks</strong> — AI generates the skeleton from the code and monitoring setup. An SRE reviews and adds the judgment calls: when to page, when to roll back, what "normal" looks like for this service.</span><span data-zh><strong>Runbook</strong>——AI 从代码和监控设置生成骨架。SRE 审查并添加判断要素：何时呼叫、何时回滚、这个服务的"正常"是什么样。</span></li>
+    </ul>
+
+    <h2><span data-en>Design Exploration: AI as Sparring Partner</span><span data-zh>设计探索：AI 作为陪练</span></h2>
+
+    <p>
+      <span data-en>Before committing to an architecture, I use Claude Code as a thinking partner. Not to generate the architecture — that's my job — but to <strong>rapidly explore alternatives and find failure modes.</strong></span>
+      <span data-zh>在确定架构之前，我用 Claude Code 作为思考伙伴。不是让它生成架构——那是我的工作——而是<strong>快速探索替代方案和发现失败模式。</strong></span>
+    </p>
+
+    <p>
+      <span data-en>"I'm considering event sourcing for the audit trail. Show me what the write path looks like for our approval workflow, and what the query path looks like for the compliance report." In 30 seconds I have a concrete sketch to evaluate, instead of spending an hour building it mentally. If the sketch reveals a problem (event replay is too slow for the report SLA), I've saved hours of implementation time.</span>
+      <span data-zh>"我在考虑用事件溯源做审计追踪。给我展示审批工作流的写路径是什么样的，以及合规报告的查询路径是什么样的。"30 秒内我有了一个具体的草图来评估，而不是花一小时在脑中构建。如果草图揭示了问题（事件重放对报告 SLA 太慢），我已经节省了数小时的实现时间。</span>
+    </p>
+
+    <p>
+      <span data-en>The key mindset: <strong>AI accelerates exploration, not decision-making.</strong> It generates options faster than I can think of them. But deciding which option to pursue requires understanding the team, the product, the timeline, and the organizational constraints — context that AI doesn't have.</span>
+      <span data-zh>关键心态：<strong>AI 加速探索，而非决策。</strong>它生成选项的速度比我想到它们的速度更快。但决定追求哪个选项需要理解团队、产品、时间线和组织约束——AI 没有的上下文。</span>
+    </p>
+
+    <h2><span data-en>Prompt Design: The Skill Nobody Talks About</span><span data-zh>Prompt 设计：没人谈论的技能</span></h2>
+
+    <p>
+      <span data-en>Prompt engineering is often dismissed as "just talking to the AI." In practice, well-structured prompts are the difference between useful output and garbage. A few principles I've found reliable:</span>
+      <span data-zh>提示工程常被轻视为"只是跟 AI 说话"。实践中，结构良好的提示是有用输出和垃圾之间的区别。我发现几个可靠的原则：</span>
+    </p>
+
+    <ul>
+      <li><span data-en><strong>Specify the output format explicitly.</strong> "Return JSON with fields: action, reason, steps" beats "tell me what to do." But always validate with regex extraction — the LLM might wrap the JSON in explanatory text.</span><span data-zh><strong>明确指定输出格式。</strong>"返回包含 action、reason、steps 字段的 JSON"优于"告诉我该做什么"。但始终用正则提取验证——LLM 可能会在 JSON 外包裹解释性文字。</span></li>
+      <li><span data-en><strong>Give the model a role with constraints.</strong> "You are a task router. Only respond with team or single. Default to single when uncertain" produces far more reliable routing than "decide how complex this task is."</span><span data-zh><strong>给模型一个带约束的角色。</strong>"你是一个任务路由器。只回复 team 或 single。不确定时默认 single"比"判断这个任务有多复杂"产生更可靠的路由。</span></li>
+      <li><span data-en><strong>Separate reasoning from action.</strong> Ask the model to output its analysis AND its decision as separate fields. This makes it easier to debug when the decision is wrong — you can see whether the reasoning was flawed or the reasoning was right but the decision rule was wrong.</span><span data-zh><strong>将推理与行动分离。</strong>要求模型将分析和决策作为独立字段输出。当决策出错时这更容易调试——你能看到是推理有缺陷还是推理正确但决策规则错误。</span></li>
+      <li><span data-en><strong>Invest in system prompts, not per-message prompts.</strong> A well-crafted system prompt (like a CLAUDE.md or AGENTS.md) that defines roles, boundaries, and output contracts saves you from repeating instructions on every message. Amortize prompt engineering effort across all interactions.</span><span data-zh><strong>投资在系统提示上，而非逐条消息提示。</strong>精心设计的系统提示（如 CLAUDE.md 或 AGENTS.md）定义角色、边界和输出契约，省去在每条消息上重复指令。将提示工程的努力分摊到所有交互中。</span></li>
+    </ul>
+
+    <h2><span data-en>Helping Teams Adopt: Solve a Pain Point, Not Evangelize a Tool</span><span data-zh>帮助团队采纳：解决痛点，而非布道工具</span></h2>
+
+    <p>
+      <span data-en>The worst way to introduce AI tools to a team is a demo of ChatGPT generating a to-do app. Engineers see through hype instantly. The best way is to <strong>solve a specific, measurable pain point that the team already complains about.</strong></span>
+      <span data-zh>向团队引入 AI 工具最糟糕的方式是演示 ChatGPT 生成一个待办应用。工程师瞬间就能看穿噱头。最好的方式是<strong>解决一个团队已经在抱怨的、具体的、可衡量的痛点。</strong></span>
+    </p>
+
+    <p>
+      <span data-en>Examples that have worked:</span>
+      <span data-zh>有效的例子：</span>
+    </p>
+
+    <ul>
+      <li><span data-en><strong>"PR review is a bottleneck"</strong> — Introduce AI pre-review for mechanical checks. Reviewers immediately notice they're spending less time on formatting and naming issues, more time on design. Adoption is organic because the benefit is obvious.</span><span data-zh><strong>"PR 审查是瓶颈"</strong>——引入 AI 预审查做机械性检查。审查者立即注意到他们在格式和命名问题上花的时间更少，在设计上花的时间更多。采纳是自然的，因为好处显而易见。</span></li>
+      <li><span data-en><strong>"Test coverage is too low"</strong> — Use AI to generate test skeletons for the most critical untested paths. Engineers fill in the edge cases. Coverage goes up without feeling like busywork.</span><span data-zh><strong>"测试覆盖率太低"</strong>——用 AI 为最关键的未测试路径生成测试骨架。工程师填充边界用例。覆盖率提升而不感觉是无聊的苦力活。</span></li>
+      <li><span data-en><strong>"Onboarding takes too long"</strong> — Set up Claude Code with the project's CLAUDE.md so new engineers can ask "how does the auth flow work?" and get an accurate answer grounded in the actual codebase, not stale documentation.</span><span data-zh><strong>"新人上手太慢"</strong>——用项目的 CLAUDE.md 设置 Claude Code，让新工程师可以问"认证流程怎么工作？"并获得基于实际代码库的准确答案，而非过时的文档。</span></li>
+    </ul>
+
+    <p>
+      <span data-en>The pattern: <strong>don't push the tool, pull with the result.</strong> Show the team that Monday's three-hour review backlog cleared in 90 minutes. Show them that the new hire asked 40% fewer "where is X?" questions in their first week. Let the results create demand.</span>
+      <span data-zh>模式：<strong>不要推工具，用结果拉。</strong>让团队看到周一三小时的审查积压在 90 分钟内清完。让他们看到新人在第一周少问了 40% 的"X 在哪里？"的问题。让结果创造需求。</span>
+    </p>
+
+    <p>
+      <span data-en>One more thing: <strong>never mandate AI tool usage.</strong> Engineers who are forced to use AI tools will blame them for every bug. Engineers who choose to use them will defend them through every rough edge. Adoption must be voluntary, driven by visible benefit.</span>
+      <span data-zh>还有一点：<strong>永远不要强制使用 AI 工具。</strong>被强迫使用 AI 工具的工程师会将每个 bug 归咎于它们。自愿选择使用的工程师会在每个粗糙边缘中为它们辩护。采纳必须是自愿的，由可见的好处驱动。</span>
+    </p>
+
+    <h2><span data-en>What I Actually Mean by "AI-Native"</span><span data-zh>底线</span></h2>
+
+    <p>
+      <span data-en>The tools are good enough today to meaningfully improve quality, speed, and learning across the full development cycle. But "AI-native" means knowing where each tool helps and where it gets in the way. Humans stay in charge of judgment, direction, and accountability. The moment you hand those over, you're not engineering anymore — you're hoping.</span>
+      <span data-zh>AI 原生工程不是在所有地方使用 AI。而是在<em>正确的范围、正确的控制、正确的任务</em>中使用 AI——并让人类掌控判断、方向和责任。今天的工具已经足够好，能在整个开发周期中有意义地提升质量、速度和学习。但前提是你把它们当作工具，而非工程纪律的替代品。</span>
+    </p>
+
+    <blockquote>
+      <span data-en>You'll know it's working when nobody on your team talks about "AI tools" anymore. They just ship faster, review better, test more thoroughly. The tool disappears into the workflow — which is the whole point.</span>
+      <span data-zh>我认识的最好的 AI 原生工程师不怎么谈论 AI。他们只是发布更快、审查更好、测试更彻底、调试更高效。工具消融在工作流中。这就是目标。</span>
+    </blockquote>
+
+    <div class="article-page-footer">
+      <p><span data-en>Written by Ming Zhou · 2025</span><span data-zh>作者：Ming Zhou · 2025</span></p>
+      <a href="../#writing" class="article-page-back">&larr; <span data-en>Back to all writing</span><span data-zh>返回文章列表</span></a>
+    </div>
+  </main>
+
+  <script src="../js/main.js"></script>
+</body>
+</html>

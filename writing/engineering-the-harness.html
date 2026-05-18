@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en" data-lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Engineering the Harness: Governing Agent Behavior Without Slowing Down Delivery — Ming Zhou</title>
+  <meta name="description" content="How we built a harness layer around LLM agents — routing, human checkpoints, state persistence, watchdog recovery, and layered memory — to make them production-safe without killing developer velocity.">
+  <link rel="stylesheet" href="../css/style.css">
+</head>
+<body>
+
+  <nav class="nav scrolled" id="nav">
+    <div class="nav-inner">
+      <a class="nav-logo" href="../">MZ<span class="nav-logo-dot">.</span></a>
+      <div class="nav-links" id="navLinks">
+        <a href="../#projects"><span data-en>Projects</span><span data-zh>项目</span></a>
+        <a href="../#writing"><span data-en>Writing</span><span data-zh>文章</span></a>
+        <a href="../#about"><span data-en>About</span><span data-zh>关于</span></a>
+        <a href="../#contact"><span data-en>Contact</span><span data-zh>联系</span></a>
+        <button class="lang-toggle" id="langToggle" aria-label="Toggle language">
+          <span data-en>中文</span><span data-zh>EN</span>
+        </button>
+      </div>
+      <button class="nav-hamburger" id="navHamburger" aria-label="Menu">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+  </nav>
+
+  <main class="article-page">
+    <a href="../#writing" class="article-page-back">&larr; <span data-en>Back to all writing</span><span data-zh>返回文章列表</span></a>
+
+    <div class="article-page-meta">
+      <span>2025</span>
+      <span><span data-en>10 min read</span><span data-zh>10 分钟阅读</span></span>
+    </div>
+
+    <h1>
+      <span data-en>Engineering the Harness: Governing Agent Behavior Without Slowing Down Delivery</span>
+      <span data-zh>工程化 Harness：在不拖慢交付的前提下治理 Agent 行为</span>
+    </h1>
+
+    <p class="article-lead">
+      <span data-en>An LLM agent without a harness is a liability. It can generate correct code, but it can also silently rewrite your auth module because you said "add authentication" when you meant "add a token check." The harness is the layer between the LLM's capabilities and the real world — routing, checkpoints, state management, recovery, and memory. Done right, it makes agents safer without making them slower. Here's how we built ours.</span>
+      <span data-zh>没有 harness 的 LLM Agent 是一个隐患。它能生成正确的代码，但它也会在你说"加个认证"（本意是"加个 token 校验"）时悄悄重写你的整个认证模块。Harness 是 LLM 能力与真实世界之间的层——路由、检查点、状态管理、恢复和记忆。做好了，它让 Agent 更安全而不更慢。以下是我们如何构建它的。</span>
+    </p>
+
+    <h2><span data-en>What Is a Harness?</span><span data-zh>什么是 Harness？</span></h2>
+
+    <p>
+      <span data-en>In agent systems, a <strong>harness</strong> is the deterministic scaffolding that wraps around the probabilistic LLM core. The LLM generates plans, writes code, and produces outputs. The harness decides <em>whether</em> those outputs reach the real world, <em>when</em> a human must intervene, and <em>how</em> the system recovers when something goes wrong.</span>
+      <span data-zh>在 Agent 系统中，<strong>harness</strong> 是包裹在概率性 LLM 核心外围的确定性脚手架。LLM 生成计划、编写代码、产出结果。Harness 决定这些输出<em>是否</em>到达真实世界、<em>何时</em>需要人工介入、以及<em>如何</em>在出错时恢复。</span>
+    </p>
+
+    <p>
+      <span data-en>Think of it as the difference between giving someone a power tool and giving them a power tool mounted on a workbench with a safety guard, an emergency stop, and a dust collector. The tool is the same. The outcomes are very different.</span>
+      <span data-zh>打个比方：同样是电动工具，直接拿在手里用，和固定在工作台上、加了防护罩、急停开关和吸尘口再用，工具没变，但出事的概率天差地别。</span>
+    </p>
+
+    <p>
+      <span data-en>A well-designed harness has five layers: <strong>routing</strong>, <strong>human checkpoints</strong>, <strong>execution governance</strong>, <strong>resilience</strong>, and <strong>memory</strong>. Each layer is deterministic code — no LLM inference in the control path.</span>
+      <span data-zh>设计良好的 harness 有五层：<strong>路由</strong>、<strong>人工检查点</strong>、<strong>执行治理</strong>、<strong>韧性</strong>和<strong>记忆</strong>。每一层都是确定性代码——控制路径中不涉及 LLM 推理。</span>
+    </p>
+
+    <h2><span data-en>Layer 1: Routing — Match Task Complexity to Agent Capability</span><span data-zh>第一层：路由——将任务复杂度匹配到 Agent 能力</span></h2>
+
+    <p>
+      <span data-en>Not every task needs the same agent configuration. A status check doesn't need a multi-step planner. A system refactor shouldn't go through a single-turn Q&A flow. The router decides which execution path a task takes.</span>
+      <span data-zh>不是每个任务都需要相同的 Agent 配置。状态查询不需要多步骤规划器。系统重构不应该走单轮问答流程。路由器决定任务走哪条执行路径。</span>
+    </p>
+
+    <p>
+      <span data-en>The key design decision: <strong>route with keywords first, LLM second.</strong> In practice, 90% of messages can be classified by simple keyword matching — "check," "status," "look at" map to single-turn mode; "refactor," "build from scratch," "new feature" map to multi-agent planning mode. Only genuinely ambiguous messages fall through to an LLM classifier.</span>
+      <span data-zh>关键设计决策：<strong>先用关键词路由，LLM 兜底。</strong>实践中，90% 的消息可以通过简单关键词匹配分类——"查看"、"状态"、"看下"走单轮模式；"重构"、"从零搭建"、"新功能"走多 Agent 规划模式。只有真正模糊的消息才降级到 LLM 分类器。</span>
+    </p>
+
+    <p>
+      <span data-en>This matters for latency and cost. An LLM routing call adds 1-3 seconds and consumes tokens on every single message. Keyword matching takes microseconds. The principle: <strong>use the cheapest correct tool at every decision point.</strong></span>
+      <span data-zh>这关系到延迟和成本。LLM 路由调用在每条消息上增加 1-3 秒并消耗 token。关键词匹配只需微秒。原则：<strong>在每个决策点使用最便宜的正确工具。</strong></span>
+    </p>
+
+    <p>
+      <span data-en>When tasks do need multi-agent orchestration, the router also handles <strong>model assignment</strong>: heavyweight reasoning models for planning and review, lightweight fast models for code generation, and CLI tools for execution in the real environment. Each model does what it's best at. The router keeps cost predictable.</span>
+      <span data-zh>当任务确实需要多 Agent 编排时，路由器还负责<strong>模型分配</strong>：重量级推理模型用于规划和审查，轻量级快速模型用于代码生成，CLI 工具用于在真实环境中执行。每个模型做它最擅长的事。路由器使成本可预测。</span>
+    </p>
+
+    <h2><span data-en>Layer 2: Human Checkpoints — The "Are You Sure?" Gate</span><span data-zh>第二层：人工检查点——"你确定吗？"门控</span></h2>
+
+    <p>
+      <span data-en>This layer exists because of a specific incident: an agent received "add authentication," interpreted it as "build a complete JWT system," and rewrote half the codebase before anyone noticed. The code quality was fine. The direction was completely wrong.</span>
+      <span data-zh>这一层的存在源于一个具体事件：Agent 收到"加个认证"，将其理解为"构建一套完整的 JWT 系统"，在任何人注意到之前重写了一半代码库。代码质量没问题。方向完全错了。</span>
+    </p>
+
+    <p>
+      <span data-en>The lesson: <strong>AI agents don't say "are you sure?"</strong> Their execution capability far exceeds their ability to validate intent. A human typing a casual message doesn't expect the system to take irreversible action based on it.</span>
+      <span data-zh>教训：<strong>AI Agent 不会说"你确定吗？"</strong>它们的执行能力远远超过验证意图的能力。一个随手打字的用户不会预期系统基于这条消息采取不可逆的行动。</span>
+    </p>
+
+    <p>
+      <span data-en>We added two mandatory checkpoints for any non-trivial task:</span>
+      <span data-zh>我们为任何非平凡任务添加了两个强制检查点：</span>
+    </p>
+
+    <ol>
+      <li><span data-en><strong>Intent confirmation</strong> — The agent explains what it understood. The human confirms before any planning begins.</span><span data-zh><strong>意图确认</strong>——Agent 解释它理解的内容。人工确认后才开始规划。</span></li>
+      <li><span data-en><strong>Plan approval</strong> — The execution plan is presented with steps, scope, and risks. The human approves before any code is written.</span><span data-zh><strong>计划审批</strong>——执行计划连同步骤、范围和风险一起展示。人工批准后才开始写代码。</span></li>
+    </ol>
+
+    <p>
+      <span data-en>A critical implementation detail: <strong>confirmation matching must be exact, not fuzzy.</strong> An early version used substring matching — <code>if "好" in message</code> — and triggered execution when a user wrote "不好意思我在忙" ("sorry I'm busy"), because the Chinese character for "good" appeared in the sentence. The fix: whitelist exact confirmation phrases. Never use fuzzy matching for approval gates.</span>
+      <span data-zh>一个关键实现细节：<strong>确认匹配必须精确，不能模糊。</strong>早期版本使用子字符串匹配——<code>if "好" in message</code>——当用户写"不好意思我在忙"时触发了执行，因为"好"字出现在了句子中。修复方案：白名单精确确认短语。永远不要在审批门控中使用模糊匹配。</span>
+    </p>
+
+    <h2><span data-en>Layer 3: Execution Governance — Budgets, Tests, and Boundaries</span><span data-zh>第三层：执行治理——预算、测试和边界</span></h2>
+
+    <p>
+      <span data-en>Even after human approval, agent execution needs governance. The harness enforces three constraints:</span>
+      <span data-zh>即使在人工批准之后，Agent 执行仍需治理。Harness 执行三个约束：</span>
+    </p>
+
+    <h3><span data-en>Step Budgets</span><span data-zh>步骤预算</span></h3>
+    <p>
+      <span data-en>Every plan has a maximum step count (typically 5). The agent cannot add steps mid-execution without returning to the approval gate. This prevents scope creep — a common failure mode where the agent discovers "while I'm here, I should also..." and spirals into unrelated changes.</span>
+      <span data-zh>每个计划有最大步骤数（通常为 5）。Agent 不能在执行过程中添加步骤而不返回审批门控。这防止范围蔓延——一种常见的失败模式，Agent 发现"既然我在这里，我还应该..."然后螺旋式地进入无关更改。</span>
+    </p>
+
+    <h3><span data-en>Test-Driven Verification</span><span data-zh>测试驱动验证</span></h3>
+    <p>
+      <span data-en>Each step in the plan includes a verification assertion defined <em>before</em> execution — not after. The planner writes the test, the executor writes the code, and the harness runs the test. If it fails, the step retries once. If it fails again, the harness pauses and reports. This is TDD applied to agent workflows: <strong>define "done" before you start.</strong></span>
+      <span data-zh>计划中的每个步骤包含一个在执行<em>之前</em>定义的验证断言——而不是之后。规划者写测试，执行者写代码，harness 运行测试。如果失败，步骤重试一次。如果再次失败，harness 暂停并报告。这是 TDD 应用于 Agent 工作流：<strong>在开始之前定义"完成"。</strong></span>
+    </p>
+
+    <h3><span data-en>Risk Boundaries</span><span data-zh>风险边界</span></h3>
+    <p>
+      <span data-en>Certain actions are classified as high-risk: <code>git push</code>, file deletion, production configuration changes, credential handling. These require explicit confirmation regardless of prior approvals. The harness checks every tool call against a risk classification before allowing execution.</span>
+      <span data-zh>某些操作被归类为高风险：<code>git push</code>、文件删除、生产配置更改、凭证处理。无论之前是否已批准，这些都需要显式确认。Harness 在允许执行之前，对每个工具调用进行风险分类检查。</span>
+    </p>
+
+    <h2><span data-en>Layer 4: Resilience — Watchdogs, Backoff, and State Persistence</span><span data-zh>第四层：韧性——看门狗、退避和状态持久化</span></h2>
+
+    <p>
+      <span data-en>Production agents fail in ways that demos never show. The LLM process hangs silently — <code>ps aux</code> shows it alive, but stdout produces nothing. A downstream API times out, and the agent enters an infinite retry loop. The user sends approval five minutes after the system restarted, and the approval has no matching request.</span>
+      <span data-zh>生产 Agent 的失败方式是演示永远不会展示的。LLM 进程静默挂起——<code>ps aux</code> 显示它活着，但 stdout 无输出。下游 API 超时，Agent 进入无限重试循环。用户在系统重启后五分钟发送批准，但批准没有匹配的请求。</span>
+    </p>
+
+    <h3><span data-en>Watchdog with Stdout Heartbeat</span><span data-zh>基于 Stdout 心跳的看门狗</span></h3>
+    <p>
+      <span data-en>We monitor the LLM process by tracking the timestamp of its last stdout output. A background thread checks every 10 seconds: if 90 seconds pass with no output, the process is killed and restarted. Why 90 seconds, not 60? Because legitimate reasoning pauses can reach 40-50 seconds on complex tasks. The threshold must exceed the longest legitimate silence, with margin.</span>
+      <span data-zh>我们通过跟踪 LLM 进程最后一次 stdout 输出的时间戳来监控它。后台线程每 10 秒检查一次：如果 90 秒无输出，杀掉并重启进程。为什么是 90 秒而不是 60 秒？因为在复杂任务上，合法的推理暂停可以达到 40-50 秒。阈值必须超过最长的合法静默期，并留有余量。</span>
+    </p>
+
+    <h3><span data-en>Exponential Backoff on Restart</span><span data-zh>重启的指数退避</span></h3>
+    <p>
+      <span data-en>When the watchdog kills a process, the restart delay doubles each time: 1s, 2s, 4s, 8s, up to a cap. This prevents hammering an upstream service that might be temporarily down. In practice, we've seen the watchdog restart 4 times at 3 AM during provider maintenance — backoff kept us from being rate-limited, and the system self-healed once the service recovered.</span>
+      <span data-zh>当看门狗杀掉进程时，重启延迟每次翻倍：1 秒、2 秒、4 秒、8 秒，直到上限。这防止对可能暂时宕机的上游服务进行冲击。实践中，我们观察到看门狗在凌晨 3 点提供商维护期间连续重启 4 次——退避策略使我们避免了限流，服务恢复后系统自动愈合。</span>
+    </p>
+
+    <h3><span data-en>Workflow State Persistence</span><span data-zh>工作流状态持久化</span></h3>
+    <p>
+      <span data-en>Every workflow phase transition writes state to disk. If the process restarts between "plan presented" and "user approved," the state file preserves where we were. When the user eventually sends "confirmed," the harness picks up exactly where it left off. Without persistence, every restart would orphan in-flight workflows.</span>
+      <span data-zh>每次工作流阶段转换都将状态写入磁盘。如果进程在"计划已展示"和"用户已批准"之间重启，状态文件保存了我们所在的位置。当用户最终发送"确认"时，harness 从中断处精确恢复。没有持久化，每次重启都会孤立正在执行的工作流。</span>
+    </p>
+
+    <h2><span data-en>Layer 5: Memory — Beyond the Sliding Window</span><span data-zh>第五层：记忆——超越滑动窗口</span></h2>
+
+    <p>
+      <span data-en>Memory is the fifth harness layer — the system that lets agents learn from past interactions without re-reading entire conversation histories. We built a three-tier architecture (conversation with session TTL, persistent memory organized into four content dimensions, and compressed summaries) with budget-aware context injection that prioritizes high-value memories over raw conversation turns. The full design — including the four-dimension content taxonomy, budget assembly logic, episode logging, and the self-improvement loop that connects them — is covered in <a href="memory-architecture.html">Memory Architecture for Production Agents</a>.</span>
+      <span data-zh>记忆是 harness 的第五层——让 Agent 在不重读完整对话历史的情况下从过去的交互中学习的系统。我们构建了一个三层架构（带会话 TTL 的对话、组织为四个内容维度的持久记忆、以及压缩摘要），配合预算感知的上下文注入，优先注入高价值记忆而非原始对话轮次。完整设计——包括四维度内容分类、预算组装逻辑、episode 日志以及连接它们的自改进循环——详见<a href="memory-architecture.html">生产级 Agent 的记忆架构</a>。</span>
+    </p>
+
+    <h2><span data-en>The Meta-Principle: LLM Output Is Never Trusted Input</span><span data-zh>元原则：LLM 输出永远不是可信输入</span></h2>
+
+    <p>
+      <span data-en>Every layer of the harness shares one assumption: <strong>LLM output is untrusted input.</strong> This applies everywhere:</span>
+      <span data-zh>harness 的每一层都共享一个假设：<strong>LLM 输出是不可信的输入。</strong>这适用于所有地方：</span>
+    </p>
+
+    <ul>
+      <li><span data-en><strong>Format:</strong> The LLM was asked for JSON. It might prepend "Sure, here's the JSON:" before the actual object. Always extract with regex, never assume the response is pure JSON.</span><span data-zh><strong>格式：</strong>LLM 被要求输出 JSON。它可能在实际对象前加上"好的，以下是 JSON："。始终用正则提取，永远不要假设响应是纯 JSON。</span></li>
+      <li><span data-en><strong>Exit codes:</strong> The LLM process exited with code 1 (failure), but the stdout stream contains a successful result. An internal MCP server timeout caused the non-zero exit, not the actual task. Trust the event stream, not the exit code.</span><span data-zh><strong>退出码：</strong>LLM 进程以代码 1（失败）退出，但 stdout 流包含成功结果。内部 MCP 服务器超时导致了非零退出，而非实际任务。信任事件流，而非退出码。</span></li>
+      <li><span data-en><strong>Scope:</strong> The LLM was asked to modify one file. It decided three other files "also need updating." The harness diffs the actual changes against the approved scope and flags deviations.</span><span data-zh><strong>范围：</strong>LLM 被要求修改一个文件。它决定另外三个文件"也需要更新"。Harness 将实际更改与批准范围进行 diff 并标记偏差。</span></li>
+    </ul>
+
+    <p>
+      <span data-en>This isn't paranoia — it's the same principle behind input validation at system boundaries. The LLM is an external system. Its outputs cross a trust boundary. Validate accordingly.</span>
+      <span data-zh>这不是偏执——这与系统边界处的输入验证是同一原则。LLM 是一个外部系统。它的输出跨越了信任边界。相应地进行验证。</span>
+    </p>
+
+    <h2><span data-en>Results</span><span data-zh>结果</span></h2>
+
+    <p>
+      <span data-en>After deploying the harness across both our production agent platform and our internal developer tooling:</span>
+      <span data-zh>在我们的生产 Agent 平台和内部开发工具中部署 harness 后：</span>
+    </p>
+
+    <ul>
+      <li><span data-en><strong>Zero unintended scope changes</strong> since adding human checkpoints. Before: 2-3 per week.</span><span data-zh><strong>零非预期范围变更</strong>（自添加人工检查点后）。之前：每周 2-3 次。</span></li>
+      <li><span data-en><strong>Self-healing uptime:</strong> the watchdog + backoff system handles transient failures without human intervention. Weeks of continuous operation without manual restarts.</span><span data-zh><strong>自愈运行时间：</strong>看门狗 + 退避系统在无人工干预的情况下处理瞬态故障。连续数周运行无需手动重启。</span></li>
+      <li><span data-en><strong>Context continuity:</strong> users stopped repeating preferences and project context. The memory system retains what matters across sessions.</span><span data-zh><strong>上下文连续性：</strong>用户不再重复偏好和项目上下文。记忆系统跨会话保留重要内容。</span></li>
+      <li><span data-en><strong>Cost predictability:</strong> keyword routing + model tiering cut per-task cost by an order of magnitude compared to routing everything through the most capable model.</span><span data-zh><strong>成本可预测性：</strong>关键词路由 + 模型分级使每任务成本比将所有内容路由到最强模型降低了一个数量级。</span></li>
+    </ul>
+
+    <blockquote>
+      <span data-en>Every capability we added to the harness — routing, checkpoints, recovery — came from a production incident. We didn't design it top-down. We extracted it from postmortems.</span>
+      <span data-zh>Harness 不会让 Agent 能力下降。它使其能力<em>可治理</em>——有界、可审计、可恢复。这就是原型和生产系统之间的区别。</span>
+    </blockquote>
+
+    <div class="article-page-footer">
+      <p><span data-en>Written by Ming Zhou · 2025</span><span data-zh>作者：Ming Zhou · 2025</span></p>
+      <a href="../#writing" class="article-page-back">&larr; <span data-en>Back to all writing</span><span data-zh>返回文章列表</span></a>
+    </div>
+  </main>
+
+  <script src="../js/main.js"></script>
+</body>
+</html>
