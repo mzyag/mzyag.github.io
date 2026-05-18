@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://mzyag.github.io/sitemap.xml
