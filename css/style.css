@@ -641,34 +641,52 @@ img { max-width: 100%; display: block; }
 #contact {
   min-height: calc(100vh - 64px);
 }
-.contact-row {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-wrap: wrap;
-  gap: 24px;
+#contact .section-title,
+#contact .section-subtitle {
+  text-align: center;
 }
 .contact-desc {
   color: var(--text-secondary);
-  font-size: 1rem;
-  line-height: 1.6;
+  font-size: 1.05rem;
+  line-height: 1.7;
   text-align: center;
-  margin-bottom: 24px;
+  margin-bottom: 48px;
+  max-width: 520px;
+  margin-left: auto;
+  margin-right: auto;
+}
+.contact-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+  max-width: 640px;
+  margin: 0 auto;
 }
 .contact-item {
   display: flex;
+  flex-direction: column;
   align-items: center;
   gap: 12px;
+  text-align: center;
+  padding: 28px 20px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
   color: var(--text-secondary);
-  font-size: 0.95rem;
-  transition: color 0.2s;
+  font-size: 0.85rem;
+  transition: all 0.3s;
 }
 a.contact-item:hover {
   color: var(--accent);
+  border-color: var(--accent);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
 }
 .contact-item svg {
   flex-shrink: 0;
   color: var(--text-muted);
+  width: 28px;
+  height: 28px;
 }
 
 /* Footer */
@@ -727,6 +745,7 @@ a.contact-item:hover {
   .about-grid { grid-template-columns: 1fr; gap: 40px; }
   .skills-grid { grid-template-columns: 1fr; }
   .articles-grid { grid-template-columns: 1fr; }
+  .contact-row { grid-template-columns: 1fr; max-width: 320px; }
 }
 
 @media (max-width: 480px) {
