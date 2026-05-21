@@ -4,16 +4,16 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>One Harness for Every Agent: Unifying Governance Across Tools and Interfaces — Ming Zhou</title>
-  <meta name="description" content="How we kept one governance spec across multiple agent runtimes — a CLI tool and an async orchestrator. Three-axis risk classification, dual-mode confirmation gates, and the five rounds of iteration that shaped the delivery report.">
+  <meta name="description" content="What happens when your second AI agent tries to follow the same governance spec. Three-axis risk classification, dual-mode confirmation gates, proportional delivery reports, and a practical checklist for multi-agent governance.">
   <meta property="og:title" content="One Harness for Every Agent: Unifying Governance Across Tools and Interfaces — Ming Zhou">
-  <meta property="og:description" content="How we kept one governance spec across multiple agent runtimes — a CLI tool and an async orchestrator. Three-axis risk, dual-mode confirmation, and proportional delivery reports.">
+  <meta property="og:description" content="What happens when your second AI agent tries to follow the same governance spec. Three-axis risk, dual-mode confirmation, proportional reports, and a checklist you can take away.">
   <meta property="og:type" content="article">
   <meta property="og:url" content="https://mzyag.github.io/writing/from-spec-to-system.html">
   <meta property="og:locale" content="en_US">
   <meta property="og:site_name" content="Ming Zhou">
   <meta name="twitter:card" content="summary">
   <meta name="twitter:title" content="One Harness for Every Agent: Unifying Governance Across Tools and Interfaces">
-  <meta name="twitter:description" content="How we kept one governance spec across multiple agent runtimes — a CLI tool and an async orchestrator. Three-axis risk, dual-mode confirmation, and proportional delivery reports.">
+  <meta name="twitter:description" content="What happens when your second AI agent tries to follow the same governance spec. Three-axis risk, dual-mode confirmation, and a practical checklist for multi-agent governance.">
   <meta name="author" content="Ming Zhou">
   <link rel="canonical" href="https://mzyag.github.io/writing/from-spec-to-system.html">
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect fill='%2309090b' width='100' height='100' rx='16'/%3E%3Ctext x='50' y='72' font-family='Inter,sans-serif' font-size='64' font-weight='700' fill='%233b82f6' text-anchor='middle'%3EM%3C/text%3E%3C/svg%3E">
@@ -23,7 +23,7 @@
     "@context": "https://schema.org",
     "@type": "Article",
     "headline": "One Harness for Every Agent: Unifying Governance Across Tools and Interfaces",
-    "description": "How we kept one governance spec across multiple agent runtimes — a CLI tool and an async orchestrator. Three-axis risk classification, dual-mode confirmation gates, and the five rounds of iteration that shaped the delivery report.",
+    "description": "What happens when your second AI agent tries to follow the same governance spec. Three-axis risk classification, dual-mode confirmation gates, proportional delivery reports, and a practical checklist for multi-agent governance.",
     "author": {"@type": "Person", "name": "Ming Zhou", "url": "https://mzyag.github.io/"},
     "publisher": {"@type": "Person", "name": "Ming Zhou"},
     "url": "https://mzyag.github.io/writing/from-spec-to-system.html",
@@ -65,8 +65,8 @@
     </h1>
 
     <p class="article-lead">
-      <span data-en>We had a harness spec that governed how our AI agents classified risk, confirmed with users, and reported deliveries. It worked well — for one agent. Then a second agent — OpenClaw, our async multi-agent orchestrator — needed to follow the same spec, and it broke in three places within the first week. The risk model couldn't express what it needed to. The confirmation gates assumed a user who was always present. The episode schemas were silently incompatible. This is the story of fixing those breaks and, more honestly, the five-round template iteration where I kept getting the delivery report wrong before checking what Google, React, and ITIL actually do.</span>
-      <span data-zh>我们有一套治理 AI Agent 的 harness 规范——风险分类、用户确认、交付报告。跑得不错——但只针对一个 Agent。当第二个 Agent——异步多 Agent 编排平台 OpenClaw——也需要遵循同一套规范时，第一周就在三个地方崩了。风险模型表达力不够。确认门控假设用户一直在线。Episode schema 静默不兼容。这篇讲的是修复这些断裂的过程，更坦诚地说，也是我在交付报告模板上迭代了五轮——直到不得不停下来去查 Google、React 和 ITIL 到底怎么做的——的过程。</span>
+      <span data-en>If you're running more than one AI agent in production — say an interactive CLI tool alongside an async chatbot or orchestrator — you'll eventually need them to follow the same governance rules. Same risk classification, same confirmation protocol, same reporting format. We hit this wall when our second agent tried to follow a spec that had only ever been tested by one. It broke in three places within the first week. The risk model couldn't express what it needed to. The confirmation gates assumed a user who was always present. The execution record formats were silently incompatible. This is the story of fixing those breaks — and, more honestly, the five-round template iteration where I kept getting the delivery report wrong before checking what Google, React, and ITIL actually do.</span>
+      <span data-zh>如果你同时跑着不止一个 AI Agent——比如一个交互式 CLI 工具加上一个异步 chatbot 或编排平台——迟早要让它们遵循同一套治理规范。同样的风险分类、同样的确认协议、同样的报告格式。当我们的第二个 Agent 尝试遵循一套只被一个 Agent 验证过的规范时，第一周就在三个地方崩了。风险模型表达力不够。确认门控假设用户一直在线。两边的执行记录格式静默不兼容。这篇讲的是修复这些断裂的过程——更坦诚地说，也是我在交付报告模板上迭代了五轮、直到不得不停下来去查 Google、React 和 ITIL 到底怎么做的过程。</span>
     </p>
 
     <h2><span data-en>Two Agents, One Spec, Zero Alignment</span><span data-zh>两个 Agent，一套规范，零对齐</span></h2>
@@ -77,30 +77,30 @@
     </p>
 
     <p>
-      <span data-en>Agent two: OpenClaw, an async multi-agent orchestrator that dispatches tasks to LLM agents via API calls. Someone submits a task at 10 AM, gets pulled into a meeting, comes back at 2 PM and expects to find the result. No "same turn." No local filesystem. Every confirmation needs to be a checkpoint that survives process restarts — because OpenClaw runs server-side, and we restart it for deploys.</span>
-      <span data-zh>第二个 Agent：OpenClaw，异步多 Agent 编排平台，通过 API 调用将任务派发给 LLM Agent。有人上午 10 点提交一个任务，开个会，下午 2 点回来期望看到结果。没有"同一轮"。没有本地文件系统。每个确认必须是能挺过进程重启的检查点——因为 OpenClaw 跑在服务端，部署时会重启。</span>
+      <span data-en>Agent two: an async multi-agent orchestrator that dispatches tasks to LLM agents via API calls. Someone submits a task at 10 AM, gets pulled into a meeting, comes back at 2 PM and expects to find the result. No "same turn." No local filesystem. Every confirmation needs to be a checkpoint that survives process restarts — because the orchestrator runs server-side, and we restart it for deploys.</span>
+      <span data-zh>第二个 Agent：异步多 Agent 编排平台，通过 API 调用将任务派发给 LLM Agent。有人上午 10 点提交一个任务，开个会，下午 2 点回来期望看到结果。没有"同一轮"。没有本地文件系统。每个确认必须是能挺过进程重启的检查点——因为编排平台跑在服务端，部署时会重启。</span>
     </p>
 
     <p>
-      <span data-en>Both needed to follow the same governance spec. In a regulated environment, you can't have two agents classifying risk differently for the same task — the audit trail becomes meaningless if "high risk" means different things depending on which agent processed the request. But OpenClaw had evolved its own parallel system over three months: H0 through H6 checkpoints, a one-dimensional <code>low/medium/high</code> risk model, direct JSONL writes for episode capture. Two harnesses, maintained independently, drifting with every commit.</span>
-      <span data-zh>两者都需要遵循同一套治理规范。在受监管的环境里，不能让两个 Agent 对同一任务的风险分类不同——如果"high risk"在不同 Agent 里含义不同，审计追踪就失去了意义。但OpenClaw在三个月里已经进化出了自己的并行体系：H0 到 H6 检查点、一维的 <code>low/medium/high</code> 风险模型、直接往 JSONL 写 episode。两套 harness，各自维护，每次提交都在加大分裂。</span>
+      <span data-en>Both needed to follow the same governance spec. If "high risk" means different things depending on which agent processed the request, the whole classification system is noise — nobody trusts it, nobody acts on it. But the async agent had evolved its own parallel system over three months: its own checkpoint sequence, a one-dimensional <code>low/medium/high</code> risk model, direct JSONL writes for execution records. Two governance systems, maintained independently, drifting with every commit. If you've ever had two microservices implement the same business rule differently because nobody owned the shared contract — same dynamic, different domain.</span>
+      <span data-zh>两者都需要遵循同一套治理规范。如果"high risk"在不同 Agent 里含义不同，整个分类体系就是噪音——没人信它，没人按它行动。但异步 Agent 在三个月里已经进化出了自己的并行体系：自己的检查点序列、一维的 <code>low/medium/high</code> 风险模型、直接往 JSONL 写执行记录。两套治理系统，各自维护，每次提交都在加大分裂。如果你经历过两个微服务因为没人维护共享契约而把同一条业务规则实现成了两个版本——同样的动态，不同的领域。</span>
     </p>
 
     <p>
-      <span data-en>I'd been ignoring the divergence because both agents "worked." What forced the issue was the episode pipeline: we tried to aggregate insights across both agents and discovered that 40% of OpenClaw's episodes were silently dropped during aggregation. Different field names — <code>episode_id</code> vs <code>id</code>, <code>task_scope</code> vs <code>scope</code>. Same concept, schema mismatch, zero errors logged. That's the kind of silent data loss that erodes trust in the whole system.</span>
-      <span data-zh>我一直忽视这个分歧，因为两个 Agent 都"能用"。真正逼我面对的是 episode 管道：我们尝试跨两个 Agent 聚合洞察，发现 40% 的OpenClaw episode 在聚合时被静默丢弃了。字段名不同——<code>episode_id</code> 对 <code>id</code>，<code>task_scope</code> 对 <code>scope</code>。概念一样，schema 不匹配，零错误日志。这种静默数据丢失会侵蚀对整个系统的信任。</span>
+      <span data-en>I'd been ignoring the divergence because both agents "worked." What forced the issue was the execution record pipeline — the system that records what each agent did, whether it succeeded, and what went wrong, so we can spot patterns and improve over time. We tried to aggregate these records across both agents and discovered that nearly half of the async agent's entries were silently dropped. Different field names — <code>episode_id</code> vs <code>id</code>, <code>task_scope</code> vs <code>scope</code>. Same concept, schema mismatch, zero errors logged. We were missing almost half of one agent's execution history and didn't know it.</span>
+      <span data-zh>我一直忽视这个分歧，因为两个 Agent 都"能用"。真正逼我面对的是执行记录管道——也就是记录每个 Agent 做了什么、成功还是失败、哪里出了问题的系统，用来发现规律和持续改进。我们尝试把两个 Agent 的记录合到一起分析，发现异步 Agent 有将近一半的记录在合并时被悄悄丢掉了。字段名不同——<code>episode_id</code> 对 <code>id</code>，<code>task_scope</code> 对 <code>scope</code>。记的是同一个东西，但格式对不上，程序直接跳过，没有任何报错。将近一半的执行记录丢了，我们却一直不知道。</span>
     </p>
 
     <h2><span data-en>Risk Classification: From One Dimension to Three</span><span data-zh>风险分类：从一维到三维</span></h2>
 
     <p>
-      <span data-en>OpenClaw's risk model was a single axis: <code>low | medium | high</code>. The LLM dispatcher picked one based on a prompt that said "consider the complexity and risk." Worked fine for about 80% of tasks. The remaining 20% exposed the problem.</span>
-      <span data-zh>OpenClaw的风险模型是单一维度：<code>low | medium | high</code>。LLM dispatcher 根据一句"考虑复杂度和风险"的 prompt 来选择。大约 80% 的任务没问题。剩下的 20% 暴露了问题。</span>
+      <span data-en>The async agent's risk model was a single axis: <code>low | medium | high</code>. The LLM dispatcher picked one based on a prompt that said "consider the complexity and risk." Worked fine for most tasks. The edge cases exposed the problem.</span>
+      <span data-zh>异步 Agent 的风险模型是单一维度：<code>low | medium | high</code>。LLM dispatcher 根据一句"考虑复杂度和风险"的 prompt 来选择。大多数任务没问题。边界情况暴露了问题。</span>
     </p>
 
     <p>
-      <span data-en>A concrete case: modifying one config file to update a database connection string. Single file — sounds like low risk. But that config pointed to the production database, and a wrong value would break the live service. A senior engineer on the team flagged it after OpenClaw auto-dispatched it without confirmation. One-dimensional risk can't express "small change, high stakes." It forces the dispatcher to pick one signal and drop the other.</span>
-      <span data-zh>一个具体案例：修改一个配置文件更新数据库连接字符串。单个文件——听起来像低风险。但那个配置指向生产数据库，一个错误值会搞垮线上服务。团队里一个高级工程师在OpenClaw未经确认就自动派发后把这个问题提了出来。一维风险无法表达"改动小、风险大"。它迫使 dispatcher 选一个信号、丢掉另一个。</span>
+      <span data-en>A concrete case: modifying one config file to update a database connection string. Single file — sounds like low risk. But that config pointed to the production database, and a wrong value would break the live service. A senior engineer on the team flagged it after the async agent auto-dispatched it without confirmation. One-dimensional risk can't express "small change, high stakes." It forces the dispatcher to pick one signal and drop the other.</span>
+      <span data-zh>一个具体案例：修改一个配置文件更新数据库连接字符串。单个文件——听起来像低风险。但那个配置指向生产数据库，一个错误值会搞垮线上服务。团队里一个高级工程师在异步 Agent 未经确认就自动派发后把这个问题提了出来。一维风险无法表达"改动小、风险大"。它迫使 dispatcher 选一个信号、丢掉另一个。</span>
     </p>
 
     <p>
@@ -120,8 +120,8 @@
     </p>
 
     <p>
-      <span data-en>In OpenClaw's dispatcher prompt, the output now includes a structured <code>risk_axes</code> object:</span>
-      <span data-zh>在OpenClaw的 dispatcher prompt 中，输出现在包含结构化的 <code>risk_axes</code> 对象：</span>
+      <span data-en>In the async agent's dispatcher prompt, the output now includes a structured <code>risk_axes</code> object:</span>
+      <span data-zh>在异步 Agent 的 dispatcher prompt 中，输出现在包含结构化的 <code>risk_axes</code> 对象：</span>
     </p>
 
     <pre><code>{
@@ -134,8 +134,8 @@
 }</code></pre>
 
     <p>
-      <span data-en>Both agents now produce the same classification for the same task. This matters for audit compliance — when a regulator asks "why was this change executed without review?", you need the answer to be the same regardless of which system processed it.</span>
-      <span data-zh>两个 Agent 现在对同一任务产出相同的分类。这对审计合规很重要——当监管者问"为什么这个变更没有经过审查就执行了？"时，无论哪个系统处理的，答案必须一致。</span>
+      <span data-en>Both agents now produce the same classification for the same task. This matters because governance loses credibility the moment two tools disagree on risk for the same change — if "Standard" means different things depending on which agent runs the task, the team stops trusting the classification and starts ignoring it.</span>
+      <span data-zh>两个 Agent 现在对同一任务产出相同的分类。这很重要，因为一旦两个工具对同一变更的风险判断不一致，治理就失去了可信度——如果"Standard"在不同 Agent 里含义不同，团队就会停止信任分类，开始无视它。</span>
     </p>
 
     <p>
@@ -151,8 +151,8 @@
     </p>
 
     <p>
-      <span data-en>Then a user submitted "refactor the auth module" via OpenClaw and went to lunch. The agent classified it as Standard — business logic is L1 sensitivity — presented the plan in the task queue, got no objection (because no one was reading), and started rewriting three files. The user came back to find changes they never intended. Sound familiar? It's the same class of bug I described in the <a href="engineering-the-harness.html">original harness article</a> — the agent doesn't say "are you sure?" — except now the blast radius was bigger because the system <em>assumed</em> silence meant consent.</span>
-      <span data-zh>然后一个用户通过 OpenClaw 提交了"重构认证模块"就去吃午饭了。Agent 分类为 Standard——业务逻辑是 L1 敏感度——在任务队列里展示了计划，没收到反对（因为没人在看），开始改三个文件。用户回来发现了一堆他们从没打算做的改动。听着耳熟？跟我在<a href="engineering-the-harness.html">最初 harness 文章</a>里描述的是同一类 bug——Agent 不会说"你确定吗？"——只是这次影响面更大，因为系统把沉默<em>当成了</em>同意。</span>
+      <span data-en>Then a user submitted "refactor the auth module" via the async agent and went to lunch. The agent classified it as Standard — business logic is L1 sensitivity — presented the plan in the task queue, got no objection (because no one was reading), and started rewriting three files. The user came back to find changes they never intended. Sound familiar? It's the same class of bug I described in the <a href="engineering-the-harness.html">original harness article</a> — the agent doesn't say "are you sure?" — except now the blast radius was bigger because the system <em>assumed</em> silence meant consent.</span>
+      <span data-zh>然后一个用户通过异步 Agent 提交了"重构认证模块"就去吃午饭了。Agent 分类为 Standard——业务逻辑是 L1 敏感度——在任务队列里展示了计划，没收到反对（因为没人在看），开始改三个文件。用户回来发现了一堆他们从没打算做的改动。听着耳熟？跟我在<a href="engineering-the-harness.html">最初 harness 文章</a>里描述的是同一类 bug——Agent 不会说"你确定吗？"——只是这次影响面更大，因为系统把沉默<em>当成了</em>同意。</span>
     </p>
 
     <p>
@@ -163,7 +163,7 @@
     <ul>
       <li><span data-en><strong>Standard + Interactive:</strong> Present plan, proceed unless the user objects in the same turn. This is what the CLI already did.</span><span data-zh><strong>Standard + Interactive：</strong>展示计划，除非用户在同一轮反对否则继续。CLI 本来就是这样。</span></li>
       <li><span data-en><strong>Standard + Async:</strong> Present plan, persist state, wait for explicit "confirmed" before touching any files.</span><span data-zh><strong>Standard + Async：</strong>展示计划，持久化状态，等到明确的"确认"再碰任何文件。</span></li>
-      <li><span data-en><strong>Critical (either mode):</strong> Always wait. No "execute all" shortcut — each step needs acknowledgment. OpenClaw handler flat-out rejects skip-checkpoint messages at Critical.</span><span data-zh><strong>Critical（无论哪种模式）：</strong>必须等待。没有"全部执行"的捷径——每个步骤都要确认。OpenClaw在 Critical 级别直接拒绝跳过检查点的请求。</span></li>
+      <li><span data-en><strong>Critical (either mode):</strong> Always wait. No "execute all" shortcut — each step needs acknowledgment. The async handler flat-out rejects skip-checkpoint messages at Critical.</span><span data-zh><strong>Critical（无论哪种模式）：</strong>必须等待。没有"全部执行"的捷径——每个步骤都要确认。异步 Agent 在 Critical 级别直接拒绝跳过检查点的请求。</span></li>
     </ul>
 
     <p>
@@ -179,8 +179,8 @@
     </p>
 
     <p>
-      <span data-en>Neither agent had a structured delivery report. The CLI agent had a loose table with risk level and acceptance results. OpenClaw had its own format with different fields. When we unified the harness, we needed a standard template both agents could produce. Seemed straightforward.</span>
-      <span data-zh>两个 Agent 都没有结构化交付报告。CLI Agent 有一个松散的表格包含风险等级和验收结果。OpenClaw有自己的格式、不同的字段。统一 harness 时我们需要一个两个 Agent 都能产出的标准模板。看着挺简单。</span>
+      <span data-en>Neither agent had a structured delivery report. The CLI agent had a loose table with risk level and acceptance results. The async agent had its own format with different fields. When we unified the harness, we needed a standard template both agents could produce. Seemed straightforward.</span>
+      <span data-zh>两个 Agent 都没有结构化交付报告。CLI Agent 有一个松散的表格包含风险等级和验收结果。异步 Agent 有自己的格式、不同的字段。统一 harness 时我们需要一个两个 Agent 都能产出的标准模板。看着挺简单。</span>
     </p>
 
     <p>
@@ -210,13 +210,12 @@
       <li><span data-en>Next.js PR template (description + test plan)</span><span data-zh>Next.js PR 模板（description + test plan）</span></li>
       <li><span data-en>Conventional Commits (<code>type(scope): description</code>)</span><span data-zh>Conventional Commits（<code>type(scope): description</code>）</span></li>
       <li><span data-en>ITIL Change Record (description → risk → verification → back-out plan)</span><span data-zh>ITIL Change Record（description → risk → verification → back-out plan）</span></li>
-      <li><span data-en>TDAD research on agentic development (arXiv 2603.17973)</span><span data-zh>TDAD Agent 开发研究（arXiv 2603.17973）</span></li>
-      <li><span data-en>DORA 2025 findings on documentation overhead vs. delivery speed</span><span data-zh>DORA 2025 关于文档开销与交付速度的研究</span></li>
+      <li><span data-en>DORA State of DevOps findings on documentation overhead vs. delivery speed</span><span data-zh>DORA State of DevOps 关于文档开销与交付速度的研究</span></li>
     </ol>
 
     <p>
-      <span data-en>The pattern across all eight was unanimous: <strong>What → Why → How verified.</strong> Three questions. Depth scales with risk. Claude CLI wants two sections. Google wants three sentences. ITIL wants six fields with a back-out plan — <em>but only for high-risk changes</em>. Not one of these templates enforces the same depth for a typo fix and a database migration. DORA's research is particularly clear: heavyweight documentation ceremonies slow delivery without improving outcomes. Unread reports provide exactly zero auditability.</span>
-      <span data-zh>八个模板的共同模式非常一致：<strong>What → Why → How verified。</strong>三个问题。深度随风险缩放。Claude CLI 要两个 section。Google 要三句话。ITIL 要六个字段加回退计划——<em>但只针对高风险变更</em>。没有一个模板对拼写修复和数据库迁移强制相同深度。DORA 的研究说得特别清楚：重量级文档仪式拖慢交付而不改善结果。没人读的报告提供的可审计性为零。</span>
+      <span data-en>The pattern across all seven was unanimous: <strong>What → Why → How verified.</strong> Three questions. Depth scales with risk. Claude CLI wants two sections. Google wants three sentences. ITIL wants six fields with a back-out plan — <em>but only for high-risk changes</em>. Not one of these templates enforces the same depth for a typo fix and a database migration. DORA's research is particularly clear: heavyweight documentation ceremonies slow delivery without improving outcomes. Unread reports provide exactly zero auditability.</span>
+      <span data-zh>七个模板的共同模式非常一致：<strong>What → Why → How verified。</strong>三个问题。深度随风险缩放。Claude CLI 要两个 section。Google 要三句话。ITIL 要六个字段加回退计划——<em>但只针对高风险变更</em>。没有一个模板对拼写修复和数据库迁移强制相同深度。DORA 的研究说得特别清楚：重量级文档仪式拖慢交付而不改善结果。没人读的报告提供的可审计性为零。</span>
     </p>
 
     <p>
@@ -238,32 +237,32 @@
     </p>
 
     <p>
-      <span data-en>Looking back, rounds 1–3 were wasted. I was iterating on instinct — "make it thorough," "make it mandatory" — instead of checking what systems that handle millions of changes per year actually settled on. The answer was right there in the Google CL guide, which has governed every change at Google since 2012. Lesson learned: when you're designing a process template, check what survived at scale before designing from scratch.</span>
-      <span data-zh>回头看，第 1-3 轮是白费的。我在凭直觉迭代——"做全面点"、"做成强制的"——而没有去查每年处理数百万变更的系统最终选择了什么。答案就在 Google CL 指南里，那套东西从 2012 年起管着 Google 的每一个变更。教训：设计流程模板时，先看看大规模验证过的实践，再从零开始设计。</span>
+      <span data-en>Looking back, rounds 1–3 were wasted. I was iterating on instinct — "make it thorough," "make it mandatory" — instead of checking what systems that handle millions of changes per year actually settled on. The answer was right there in the Google CL guide, which has governed every CL at Google for over a decade. Lesson learned: when you're designing a process template, check what survived at scale before designing from scratch.</span>
+      <span data-zh>回头看，第 1-3 轮是白费的。我在凭直觉迭代——"做全面点"、"做成强制的"——而没有去查每年处理数百万变更的系统最终选择了什么。答案就在 Google CL 指南里，那套东西管了 Google 十几年的每一个变更。教训：设计流程模板时，先看看大规模验证过的实践，再从零开始设计。</span>
     </p>
 
     <h2><span data-en>One Spec, Dual Modes</span><span data-zh>一套规范，双模式</span></h2>
 
     <p>
-      <span data-en>With risk, confirmation, and reporting aligned, we could actually merge. The key realization was simple in hindsight: Interactive and Async aren't different harnesses. They're different <em>modes</em> of the same harness. The gates — G0 (risk classification) through G5 (episode capture) — are identical. Only the confirmation mechanism varies.</span>
-      <span data-zh>风险、确认、报告对齐之后，终于可以合并了。事后看关键认知很简单：Interactive 和 Async 不是不同的 harness。它们是同一个 harness 的不同<em>模式</em>。门控——G0（风险分类）到 G5（episode 捕获）——完全一致。只有确认机制不同。</span>
+      <span data-en>With risk, confirmation, and reporting aligned, we could actually merge. The key realization was simple in hindsight: Interactive and Async aren't different harnesses. They're different <em>modes</em> of the same harness. The gates — risk classification, scope confirmation, execution, validation, delivery, post-task capture — are identical. Only the confirmation mechanism varies.</span>
+      <span data-zh>风险、确认、报告对齐之后，终于可以合并了。事后看关键认知很简单：Interactive 和 Async 不是不同的 harness。它们是同一个 harness 的不同<em>模式</em>。门控——风险分类、范围确认、执行、验证、交付、任务后捕获——完全一致。只有确认机制不同。</span>
     </p>
 
     <p>
-      <span data-en>Now one spec file governs both agents. OpenClaw implements the Async mode of the workspace harness — it doesn't maintain its own gate definitions. When the spec evolves, both agents evolve. We renamed all internal references from OpenClaw's old H0–H6 nomenclature to G0–G5, so there's one vocabulary across the codebase.</span>
-      <span data-zh>现在一个规范文件治理两个 Agent。OpenClaw实现 workspace harness 的 Async 模式——不再维护自己的门控定义。规范演进时两个 Agent 一起演进。我们把OpenClaw内部所有旧的 H0–H6 命名统一成了 G0–G5，整个代码库一套词汇表。</span>
+      <span data-en>Now one spec file governs both agents. The async orchestrator implements the Async mode of the shared harness — it doesn't maintain its own gate definitions. When the spec evolves, both agents evolve. We unified all internal nomenclature so there's one vocabulary across the codebase — no more parallel naming systems drifting apart.</span>
+      <span data-zh>现在一个规范文件治理两个 Agent。异步编排平台实现共享 harness 的 Async 模式——不再维护自己的门控定义。规范演进时两个 Agent 一起演进。我们统一了所有内部命名，整个代码库一套词汇表——不再有两套命名各自漂移。</span>
     </p>
 
     <h2><span data-en>The Memory Pipeline Fix</span><span data-zh>记忆管道修复</span></h2>
 
     <p>
-      <span data-en>Back to the silent data loss that started this whole effort. OpenClaw wrote episodes to JSONL using <code>episode_id</code>, <code>task_scope</code>, <code>task_outcome</code>. The CLI agent's capture pipeline expected <code>id</code>, <code>scope</code>, <code>outcome</code>. The downstream aggregation — extracting insights, compacting old episodes, syncing to the PARA memory system — only spoke the CLI's dialect. 40% of OpenClaw's data was being silently discarded.</span>
-      <span data-zh>回到引发这一切的静默数据丢失问题。OpenClaw往 JSONL 写 episode 用的是 <code>episode_id</code>、<code>task_scope</code>、<code>task_outcome</code>。CLI Agent 的捕获管道期望的是 <code>id</code>、<code>scope</code>、<code>outcome</code>。下游聚合——提取洞察、压缩旧 episode、同步到 PARA 记忆系统——只认 CLI 的方言。OpenClaw 40% 的数据在被悄悄丢弃。</span>
+      <span data-en>Back to the silent data loss that started this whole effort. The async agent wrote execution records using <code>episode_id</code>, <code>task_scope</code>, <code>task_outcome</code>. The CLI agent's capture pipeline expected <code>id</code>, <code>scope</code>, <code>outcome</code>. The downstream aggregation — extracting insights, compacting old records, syncing to the memory system — only spoke the CLI's dialect. 40% of the async agent's data was being silently discarded.</span>
+      <span data-zh>回到引发这一切的静默数据丢失问题。异步 Agent 往 JSONL 写执行记录用的是 <code>episode_id</code>、<code>task_scope</code>、<code>task_outcome</code>。CLI Agent 的捕获管道期望的是 <code>id</code>、<code>scope</code>、<code>outcome</code>。下游聚合——提取洞察、压缩旧记录、同步到记忆系统——只认 CLI 的方言。异步 Agent 40% 的数据在被悄悄丢弃。</span>
     </p>
 
     <p>
-      <span data-en>Instead of adding a translation layer (which just moves the schema problem), we made OpenClaw import the CLI's capture function directly. <code>self_improve.capture()</code> handles schema normalization, PII sanitization, and file rotation. One code path, one schema, one downstream pipeline. The harness spec now documents "Alternative Capture Methods" for agents that can't call CLI commands — import the function or write to the canonical schema directly, as long as you use the sanitization utility.</span>
-      <span data-zh>我们没有加翻译层（那只是把 schema 问题换了个地方），而是让OpenClaw直接导入 CLI 的 capture 函数。<code>self_improve.capture()</code> 负责 schema 规范化、PII 脱敏和文件轮转。一条代码路径、一个 schema、一条下游管道。Harness 规范现在记录了"替代捕获方式"，面向无法调用 CLI 命令的 Agent——导入函数或直接写规范 schema，前提是使用脱敏工具。</span>
+      <span data-en>Instead of adding a translation layer (which just moves the schema problem), we made the async agent import the CLI's capture function directly. One shared function handles schema normalization, content sanitization, and file rotation. One code path, one schema, one downstream pipeline. The harness spec now documents alternative capture methods for agents that can't call CLI commands — import the function or write to the canonical schema directly, as long as you run the sanitization step.</span>
+      <span data-zh>我们没有加翻译层（那只是把 schema 问题换了个地方），而是让异步 Agent 直接导入 CLI 的捕获函数。一个共享函数负责 schema 规范化、内容脱敏和文件轮转。一条代码路径、一个 schema、一条下游管道。Harness 规范现在记录了替代捕获方式，面向无法调用 CLI 命令的 Agent——导入函数或直接写规范 schema，前提是走脱敏步骤。</span>
     </p>
 
     <h2><span data-en>What I'd Do Differently</span><span data-zh>如果重来我会怎么做</span></h2>
@@ -279,8 +278,8 @@
     </p>
 
     <p>
-      <span data-en><strong>Design for dual-mode from the start.</strong> The Interactive-only assumption was baked into every confirmation gate. Retrofitting Async mode meant touching all of them. If we'd declared both modes upfront, integrating OpenClaw would have been configuration, not redesign.</span>
-      <span data-zh><strong>从一开始就设计双模式。</strong>仅 Interactive 的假设嵌入了每一个确认门控。改造 Async 模式意味着全部要改。如果一开始就声明两种模式，接入OpenClaw就是配置变更，不是重新设计。</span>
+      <span data-en><strong>Design for dual-mode from the start.</strong> The Interactive-only assumption was baked into every confirmation gate. Retrofitting Async mode meant touching all of them. If we'd declared both modes upfront, integrating the second agent would have been configuration, not redesign.</span>
+      <span data-zh><strong>从一开始就设计双模式。</strong>仅 Interactive 的假设嵌入了每一个确认门控。改造 Async 模式意味着全部要改。如果一开始就声明两种模式，接入第二个 Agent 就是配置变更，不是重新设计。</span>
     </p>
 
     <p>
@@ -291,14 +290,30 @@
     <h2><span data-en>Where It Stands Now</span><span data-zh>现在的状态</span></h2>
 
     <p>
-      <span data-en>The unified harness has six gates — G0 through G5 — with risk-proportional depth. Routine tasks (all L0) skip planning and formal validation. Standard tasks (any L1) get the full flow. Critical tasks (any L2) get everything plus mandatory human confirmation before execution begins. Both agents implement the same spec, produce the same reports, and feed the same episode pipeline. About 200–300 tasks per week go through the system, split roughly 60/40 between Claude CLI and OpenClaw.</span>
-      <span data-zh>统一后的 harness 有六个门控——G0 到 G5——深度与风险成比例。Routine 任务（全 L0）跳过规划和正式验证。Standard 任务（任一 L1）走完整流程。Critical 任务（任一 L2）全套加上执行前的强制人工确认。两个 Agent 实现同一规范，产出同样的报告，输入同一条 episode 管道。每周大约 200-300 个任务经过系统，Claude CLI 和 OpenClaw 大概六四开。</span>
+      <span data-en>The unified harness has six gates — risk classification, scope confirmation, execution, validation, delivery, and post-task capture — with risk-proportional depth. Routine tasks (all L0) skip planning and formal validation. Standard tasks (any L1) get the full flow. Critical tasks (any L2) get everything plus mandatory human confirmation before execution begins. Both agents implement the same spec, produce the same reports, and feed the same execution record pipeline.</span>
+      <span data-zh>统一后的 harness 有六个门控——风险分类、范围确认、执行、验证、交付、任务后捕获——深度与风险成比例。Routine 任务（全 L0）跳过规划和正式验证。Standard 任务（任一 L1）走完整流程。Critical 任务（任一 L2）全套加上执行前的强制人工确认。两个 Agent 实现同一规范，产出同样的报告，输入同一条执行记录管道。</span>
     </p>
 
     <p>
       <span data-en>If there's one line I'd keep from this whole exercise, it's this: a spec with only one implementation isn't a spec — it's a description of that implementation. You find out what's actually load-bearing when a second system tries to follow the same rules. We didn't design the three-axis risk model or the dual-mode confirmation or the proportional reporting because we had foresight. We designed them because a second agent showed up and the original spec couldn't handle it.</span>
       <span data-zh>如果让我从这整个过程中只留一句话：只有一个实现的规范不是规范——它是对那个实现的描述。当第二个系统尝试遵循同一套规则时，你才发现什么是真正承重的。我们不是因为有远见才设计了三轴风险模型、双模式确认和比例化报告。是因为第二个 Agent 出现了，原始规范扛不住了。</span>
     </p>
+
+    <h2><span data-en>Checklist: Governing Multiple Agents</span><span data-zh>清单：多 Agent 治理</span></h2>
+
+    <p>
+      <span data-en>If you're about to add a second agent to a governance spec that currently only has one, here's what I'd check first:</span>
+      <span data-zh>如果你正要把第二个 Agent 接入一套目前只有一个实现的治理规范，以下是我建议先检查的：</span>
+    </p>
+
+    <ol>
+      <li><span data-en><strong>Define execution record schema before building implementations.</strong> Field names, required fields, enum values. If two agents invent their own schemas for three months, you'll spend a week reconciling them — or worse, lose data silently.</span><span data-zh><strong>先定义执行记录的 schema 再写实现。</strong>字段名、必填项、枚举值。如果两个 Agent 各自发明 schema 三个月，你会花一周来调和——或者更糟，静默丢数据。</span></li>
+      <li><span data-en><strong>Use independent risk axes, not a single dimension.</strong> Blast radius, reversibility, and sensitivity each contribute different signals. Let policy compose them (take the max), don't force the classifier to compress them into one label.</span><span data-zh><strong>用独立的风险轴，不要用单一维度。</strong>影响面、可逆性、敏感度各自贡献不同信号。让策略层来组合（取最大值），不要强迫分类器把它们压成一个标签。</span></li>
+      <li><span data-en><strong>Declare Interactive vs Async modes explicitly.</strong> If a user might not be present when the agent acts, silence cannot mean consent. Async mode must checkpoint and wait.</span><span data-zh><strong>显式声明 Interactive 和 Async 模式。</strong>如果 Agent 执行时用户可能不在，沉默不能等于同意。Async 模式必须设检查点并等待。</span></li>
+      <li><span data-en><strong>Scale report depth with risk.</strong> What → Why → How verified. Three questions, not six mandatory fields. Routine gets a one-liner. Critical gets rollback instructions. Check Google's CL guide, React's PR template, and ITIL before designing from scratch.</span><span data-zh><strong>报告深度随风险缩放。</strong>What → Why → How verified。三个问题，不是六个必填字段。Routine 一句话。Critical 要回滚指令。设计之前先查 Google CL 指南、React PR 模板和 ITIL。</span></li>
+      <li><span data-en><strong>One capture path, one schema, one pipeline.</strong> Don't add a translation layer between agent-specific formats — that just moves the schema problem. Make every agent write to the same canonical format.</span><span data-zh><strong>一条捕获路径、一个 schema、一条管道。</strong>不要在 Agent 各自的格式之间加翻译层——那只是把 schema 问题换个地方。让每个 Agent 都写同一个规范格式。</span></li>
+      <li><span data-en><strong>Test your spec with two implementations.</strong> One implementation proves the spec compiles. Two prove it's meaningful. If you only have one agent, your spec is a description of that agent — you won't know what's actually load-bearing until the second one shows up.</span><span data-zh><strong>用两个实现验证你的规范。</strong>一个实现证明规范能跑通。两个实现证明规范有意义。如果你只有一个 Agent，你的规范就是对那个 Agent 的描述——第二个出现之前你不会知道什么是真正承重的。</span></li>
+    </ol>
 
     <div class="article-page-footer">
       <p><span data-en>Written by Ming Zhou · 2026</span><span data-zh>作者：Ming Zhou · 2026</span></p>
