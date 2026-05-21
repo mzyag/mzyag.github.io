@@ -1,0 +1,552 @@
+<!DOCTYPE html>
+<html lang="en" data-lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>When Agents Collaborate: Failure Modes in Multi-Role LLM Systems — Ming Zhou</title>
+  <meta name="description" content="A field report on what actually breaks when you split tasks across multiple LLM agents — Planner, Executor, Critic — in production. Five failure modes, concrete examples, and what we did about each.">
+  <meta property="og:title" content="When Agents Collaborate: Failure Modes in Multi-Role LLM Systems — Ming Zhou">
+  <meta property="og:description" content="Five failure modes discovered in production multi-agent systems: context loss, role confusion, infinite rework, maker-checker theater, and arbitration deadlocks.">
+  <meta property="og:type" content="article">
+  <meta property="og:url" content="https://mzyag.github.io/writing/multi-agent-failure-modes.html">
+  <meta property="og:locale" content="en_US">
+  <meta property="og:site_name" content="Ming Zhou">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="When Agents Collaborate: Failure Modes in Multi-Role LLM Systems">
+  <meta name="twitter:description" content="Five failure modes discovered in production multi-agent systems: context loss, role confusion, infinite rework, maker-checker theater, and arbitration deadlocks.">
+  <meta name="author" content="Ming Zhou">
+  <link rel="canonical" href="https://mzyag.github.io/writing/multi-agent-failure-modes.html">
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect fill='%2309090b' width='100' height='100' rx='16'/%3E%3Ctext x='50' y='72' font-family='Inter,sans-serif' font-size='64' font-weight='700' fill='%233b82f6' text-anchor='middle'%3EM%3C/text%3E%3C/svg%3E">
+  <link rel="stylesheet" href="../css/style.css">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "Article",
+    "headline": "When Agents Collaborate: Failure Modes in Multi-Role LLM Systems",
+    "description": "A field report on what actually breaks when you split tasks across multiple LLM agents in production. Five failure modes, concrete examples, and mitigations.",
+    "author": {"@type": "Person", "name": "Ming Zhou", "url": "https://mzyag.github.io/"},
+    "publisher": {"@type": "Person", "name": "Ming Zhou"},
+    "url": "https://mzyag.github.io/writing/multi-agent-failure-modes.html",
+    "datePublished": "2025-05-22"
+  }
+  </script>
+</head>
+<body>
+
+  <nav class="nav scrolled" id="nav">
+    <div class="nav-inner">
+      <a class="nav-logo" href="../">MZ<span class="nav-logo-dot">.</span></a>
+      <div class="nav-links" id="navLinks">
+        <a href="../#projects"><span data-en>Projects</span><span data-zh>项目</span></a>
+        <a href="../#writing"><span data-en>Writing</span><span data-zh>文章</span></a>
+        <a href="../#about"><span data-en>About</span><span data-zh>关于</span></a>
+        <a href="../#contact"><span data-en>Contact</span><span data-zh>联系</span></a>
+        <button class="lang-toggle" id="langToggle" aria-label="Toggle language">
+          <span data-en>中文</span><span data-zh>EN</span>
+        </button>
+      </div>
+      <button class="nav-hamburger" id="navHamburger" aria-label="Menu">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+  </nav>
+
+  <main class="article-page">
+    <a href="../#writing" class="article-page-back">&larr; <span data-en>Back to all writing</span><span data-zh>返回文章列表</span></a>
+
+    <div class="article-page-meta">
+      <span>2025</span>
+      <span><span data-en>12 min read</span><span data-zh>12 分钟阅读</span></span>
+    </div>
+
+    <h1>
+      <span data-en>When Agents Collaborate: Failure Modes in Multi-Role LLM Systems</span>
+      <span data-zh>当 Agent 协作时：多角色 LLM 系统的失败模式</span>
+    </h1>
+
+    <p class="article-lead">
+      <span data-en>If you're splitting a task across multiple LLM agents — a planner, an executor, a reviewer — you've probably already hit the first failure mode. Maybe the executor quietly contradicted a decision the planner made for good reasons. Maybe the reviewer rejected output three times in a row and you realized the loop would never converge. Maybe you built a maker-checker pattern only to discover both roles agreed on everything, including the wrong answer. This article is about those failures: the ones that only show up when agents collaborate, not the ones you find in single-agent benchmarks.</span>
+      <span data-zh>如果你正在把一个任务拆分给多个 LLM agent——一个负责规划、一个负责执行、一个负责审查——你可能已经踩过第一个坑了。也许执行者悄悄推翻了规划者深思熟虑后做出的决策。也许审查者连续三次驳回输出，而你意识到这个循环永远不会收敛。也许你精心搭建了一个提议-复核模式，结果发现两个角色对所有东西都达成了一致——包括错误的答案。这篇文章讲的就是这类失败：只在 agent 协作时才出现的失败，而不是你在单 agent 基准测试中能发现的那些。</span>
+    </p>
+
+    <!-- ================================================================ -->
+    <!-- WHY MULTI-ROLE AT ALL? -->
+    <!-- ================================================================ -->
+
+    <h2><span data-en>Why Multi-Role at All?</span><span data-zh>为什么要用多角色？</span></h2>
+
+    <p>
+      <span data-en>A single LLM agent hits a ceiling when tasks get complex enough. Ask one agent to analyze a codebase, write a migration plan, execute the migration, and verify the result, and you'll watch it lose coherence about halfway through. It starts cutting corners on the plan because it's already thinking about execution. It skips verification because the context window is saturated with code.</span>
+      <span data-zh>当任务足够复杂时，单个 LLM agent 会遇到天花板。让一个 agent 分析代码库、编写迁移方案、执行迁移、再验证结果——你会看到它大约到一半就开始失去连贯性。它在规划阶段就开始偷工减料，因为脑子里已经在想执行的事了。它跳过验证，因为上下文窗口已经被代码塞满了。</span>
+    </p>
+
+    <p>
+      <span data-en>Multi-role architectures address this by <strong>separation of concerns</strong> (the software engineering principle of isolating each part of a system to handle one responsibility). You give each agent a focused role: one plans, one executes, one reviews. Each role gets a clean context window, a clear mandate, and a bounded scope. In theory, this should produce better results than a single generalist agent — the same way a code review by a separate person catches things the author missed.</span>
+      <span data-zh>多角色架构通过<strong>关注点分离</strong>（将系统的每个部分隔离出来各自处理一项职责的软件工程原则）来解决这个问题。你给每个 agent 一个专注的角色：一个规划，一个执行，一个审查。每个角色都有干净的上下文窗口、明确的职责和有限的边界。理论上，这应该比单个通才 agent 产出更好的结果——就像由另一个人做的代码审查能发现作者遗漏的问题一样。</span>
+    </p>
+
+    <p>
+      <span data-en>In practice, it does — sometimes. But it also introduces a class of coordination problems that single-agent systems never face. The failures aren't in the individual agents. They're in the spaces between them.</span>
+      <span data-zh>实践中确实如此——但只是有时候。它同时引入了一类单 agent 系统从未面对过的协调问题。故障不在单个 agent 身上，而在它们之间的缝隙里。</span>
+    </p>
+
+    <!-- ================================================================ -->
+    <!-- ARCHITECTURE DIAGRAM 1 -->
+    <!-- ================================================================ -->
+
+    <h2><span data-en>The Multi-Role Flow</span><span data-zh>多角色工作流</span></h2>
+
+    <p>
+      <span data-en>Before we talk about what breaks, here's the architecture we built. This is a simplified view — the real system has more edges — but it captures the essential flow:</span>
+      <span data-zh>在讨论哪里会出问题之前，先看我们搭建的架构。这是简化视图——实际系统有更多分支——但它呈现了核心流程：</span>
+    </p>
+
+    <svg viewBox="0 0 720 420" width="100%" xmlns="http://www.w3.org/2000/svg" style="margin: 24px 0; border-radius: 12px;">
+      <defs>
+        <marker id="arrow1" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
+          <polygon points="0 0, 10 3.5, 0 7" fill="#3b82f6"/>
+        </marker>
+        <marker id="arrow1-orange" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
+          <polygon points="0 0, 10 3.5, 0 7" fill="#f59e0b"/>
+        </marker>
+      </defs>
+      <rect width="720" height="420" rx="12" fill="#1e1e2e"/>
+
+      <!-- Task Input -->
+      <rect x="20" y="175" width="100" height="50" rx="8" fill="#2a2a3e" stroke="#3b82f6" stroke-width="1.5"/>
+      <text x="70" y="196" text-anchor="middle" fill="#e2e8f0" font-family="Inter,sans-serif" font-size="12" font-weight="600">Task Input</text>
+      <text x="70" y="212" text-anchor="middle" fill="#a1a1aa" font-family="Inter,sans-serif" font-size="9">任务输入</text>
+
+      <!-- Arrow: Input → Planner -->
+      <line x1="120" y1="200" x2="155" y2="200" stroke="#3b82f6" stroke-width="1.5" marker-end="url(#arrow1)"/>
+
+      <!-- Planner -->
+      <rect x="165" y="165" width="110" height="70" rx="8" fill="#1e3a5f" stroke="#3b82f6" stroke-width="2"/>
+      <text x="220" y="194" text-anchor="middle" fill="#e2e8f0" font-family="Inter,sans-serif" font-size="13" font-weight="700">Planner</text>
+      <text x="220" y="212" text-anchor="middle" fill="#93c5fd" font-family="Inter,sans-serif" font-size="9">规划者 · generates plan</text>
+      <text x="220" y="224" text-anchor="middle" fill="#93c5fd" font-family="Inter,sans-serif" font-size="9">生成执行方案</text>
+
+      <!-- Arrow: Planner → Human Checkpoint -->
+      <line x1="275" y1="200" x2="305" y2="200" stroke="#3b82f6" stroke-width="1.5" marker-end="url(#arrow1)"/>
+
+      <!-- Human Checkpoint -->
+      <rect x="315" y="175" width="80" height="50" rx="25" fill="#2a2a3e" stroke="#22c55e" stroke-width="1.5" stroke-dasharray="4,3"/>
+      <text x="355" y="196" text-anchor="middle" fill="#86efac" font-family="Inter,sans-serif" font-size="10" font-weight="600">Human OK</text>
+      <text x="355" y="210" text-anchor="middle" fill="#6ee7a0" font-family="Inter,sans-serif" font-size="8">人工审批</text>
+
+      <!-- Arrow: Checkpoint → Executor -->
+      <line x1="395" y1="200" x2="425" y2="200" stroke="#3b82f6" stroke-width="1.5" marker-end="url(#arrow1)"/>
+
+      <!-- Executor -->
+      <rect x="435" y="165" width="110" height="70" rx="8" fill="#1e3a5f" stroke="#3b82f6" stroke-width="2"/>
+      <text x="490" y="194" text-anchor="middle" fill="#e2e8f0" font-family="Inter,sans-serif" font-size="13" font-weight="700">Executor</text>
+      <text x="490" y="212" text-anchor="middle" fill="#93c5fd" font-family="Inter,sans-serif" font-size="9">执行者 · runs steps</text>
+      <text x="490" y="224" text-anchor="middle" fill="#93c5fd" font-family="Inter,sans-serif" font-size="9">执行步骤</text>
+
+      <!-- Arrow: Executor → Critic -->
+      <line x1="545" y1="200" x2="575" y2="200" stroke="#3b82f6" stroke-width="1.5" marker-end="url(#arrow1)"/>
+
+      <!-- Critic -->
+      <rect x="585" y="165" width="110" height="70" rx="8" fill="#1e3a5f" stroke="#3b82f6" stroke-width="2"/>
+      <text x="640" y="194" text-anchor="middle" fill="#e2e8f0" font-family="Inter,sans-serif" font-size="13" font-weight="700">Critic</text>
+      <text x="640" y="212" text-anchor="middle" fill="#93c5fd" font-family="Inter,sans-serif" font-size="9">审查者 · reviews output</text>
+      <text x="640" y="224" text-anchor="middle" fill="#93c5fd" font-family="Inter,sans-serif" font-size="9">审查结果</text>
+
+      <!-- Decision diamond below Critic -->
+      <polygon points="640,280 680,320 640,360 600,320" fill="#2a2a3e" stroke="#f59e0b" stroke-width="1.5"/>
+      <text x="640" y="317" text-anchor="middle" fill="#fbbf24" font-family="Inter,sans-serif" font-size="9" font-weight="600">Decision</text>
+      <text x="640" y="330" text-anchor="middle" fill="#fbbf24" font-family="Inter,sans-serif" font-size="8">决策</text>
+
+      <!-- Arrow: Critic → Decision -->
+      <line x1="640" y1="235" x2="640" y2="278" stroke="#f59e0b" stroke-width="1.5" marker-end="url(#arrow1-orange)"/>
+
+      <!-- Output (Approve) -->
+      <rect x="640" y="385" width="70" height="30" rx="8" fill="#16a34a" stroke="#22c55e" stroke-width="1.5"/>
+      <text x="675" y="404" text-anchor="middle" fill="#e2e8f0" font-family="Inter,sans-serif" font-size="10" font-weight="600">Output</text>
+
+      <!-- Arrow: Decision → Output (Approve) -->
+      <line x1="660" y1="345" x2="675" y2="383" stroke="#22c55e" stroke-width="1.5" marker-end="url(#arrow1)"/>
+      <text x="693" y="368" fill="#86efac" font-family="Inter,sans-serif" font-size="8">Approve 通过</text>
+
+      <!-- Rework feedback loop: Decision → Planner -->
+      <path d="M 600,320 L 400,320 Q 360,320 360,290 L 360,260 Q 360,245 340,245 L 245,245 Q 220,245 220,237" fill="none" stroke="#f59e0b" stroke-width="1.5" stroke-dasharray="5,3" marker-end="url(#arrow1-orange)"/>
+      <text x="430" y="312" fill="#fbbf24" font-family="Inter,sans-serif" font-size="8">Rework 返工</text>
+
+      <!-- Escalate arrow -->
+      <line x1="620" y1="345" x2="560" y2="390" stroke="#ef4444" stroke-width="1.5" marker-end="url(#arrow1)"/>
+      <text x="555" y="405" fill="#fca5a5" font-family="Inter,sans-serif" font-size="8">Escalate 升级</text>
+
+      <!-- Legend -->
+      <rect x="20" y="370" width="180" height="40" rx="6" fill="#252538" opacity="0.8"/>
+      <line x1="30" y1="385" x2="55" y2="385" stroke="#3b82f6" stroke-width="1.5"/>
+      <text x="60" y="389" fill="#a1a1aa" font-family="Inter,sans-serif" font-size="8">Forward flow 正向流</text>
+      <line x1="30" y1="400" x2="55" y2="400" stroke="#f59e0b" stroke-width="1.5" stroke-dasharray="5,3"/>
+      <text x="60" y="404" fill="#a1a1aa" font-family="Inter,sans-serif" font-size="8">Feedback loop 反馈环</text>
+
+      <!-- Title -->
+      <text x="360" y="30" text-anchor="middle" fill="#e2e8f0" font-family="Inter,sans-serif" font-size="14" font-weight="700">Multi-Role Agent Flow</text>
+      <text x="360" y="48" text-anchor="middle" fill="#a1a1aa" font-family="Inter,sans-serif" font-size="10">多角色 Agent 协作流程</text>
+    </svg>
+
+    <p>
+      <span data-en>The flow looks clean on a diagram. In practice, every arrow is a potential failure point. Let's walk through the five failure modes we discovered over roughly a year of running this architecture in production.</span>
+      <span data-zh>流程图上看起来很清爽。实际上，每一条连线都是潜在的故障点。下面我们逐一讲解在大约一年的生产运行中发现的五种失败模式。</span>
+    </p>
+
+    <!-- ================================================================ -->
+    <!-- FAILURE MODE 1: CONTEXT LOSS -->
+    <!-- ================================================================ -->
+
+    <h2><span data-en>Failure Mode 1: Context Loss Between Roles</span><span data-zh>失败模式一：角色交接时的上下文丢失</span></h2>
+
+    <p>
+      <span data-en>The Planner knows <em>why</em> a decision was made. The Executor only gets <em>what</em> to do. This is the most common failure mode and the most insidious, because the system appears to be working — the Executor completes the task — but the result silently violates a constraint that only the Planner was aware of.</span>
+      <span data-zh>规划者知道一个决策<em>为什么</em>这样做，而执行者只拿到了<em>做什么</em>。这是最常见、也最隐蔽的失败模式——因为系统看上去在正常工作，执行者也完成了任务——但结果悄悄违反了一个只有规划者才知道的约束条件。</span>
+    </p>
+
+    <p>
+      <span data-en><strong>Concrete example:</strong> We had a Planner that chose approach A (an in-memory cache) over approach B (a Redis-backed cache) for a data pipeline, specifically because the deployment target had a 512MB memory ceiling and the dataset was small enough to fit. The Planner's output to the Executor was: "Implement the pipeline with an in-memory cache." The reasoning — the memory constraint, the dataset size analysis, the rejection of Redis — was not passed along. Two weeks later, the dataset grew. The Executor, working on an update, hit out-of-memory errors. Without the original reasoning, it "fixed" the problem by switching to Redis — exactly the approach the Planner had evaluated and rejected for unrelated latency reasons that still applied.</span>
+      <span data-zh><strong>具体案例：</strong>我们有一个规划者为数据管道选择了方案 A（内存缓存）而非方案 B（Redis 缓存），原因是部署目标有 512MB 的内存上限，而当时数据集小到可以放下。规划者给执行者的指令是："用内存缓存实现这个管道。"推理过程——内存约束、数据集大小分析、排除 Redis 的理由——统统没有传递。两周后数据集增长了。执行者在做更新时遇到内存溢出，在没有原始推理的情况下，它把方案"修复"成了 Redis——恰恰是规划者出于仍然成立的延迟原因而评估并否决的方案。</span>
+    </p>
+
+    <p>
+      <span data-en>The handoff between roles is where institutional knowledge goes to die. Every time context is compressed into "just the instructions," you're betting that no future decision depends on information you threw away. In a multi-step task, that bet loses frequently.</span>
+      <span data-zh>角色间的交接就是机构知识消亡的地方。每次把上下文压缩成"只留指令"，你就是在赌未来不会有任何决策依赖你丢弃的信息。在多步骤任务中，这个赌注经常输。</span>
+    </p>
+
+    <!-- ================================================================ -->
+    <!-- FAILURE MODE 2: ROLE BOUNDARY CONFUSION -->
+    <!-- ================================================================ -->
+
+    <h2><span data-en>Failure Mode 2: Role Boundary Confusion</span><span data-zh>失败模式二：角色边界模糊</span></h2>
+
+    <p>
+      <span data-en>When does the Executor stop executing and start planning? When does the Critic stop reviewing and start rewriting? Without hard boundaries enforced by the harness (the orchestration layer that manages agent interactions), agents drift into each other's roles. LLMs are generalists — they'll happily do whatever seems helpful, regardless of their assigned role.</span>
+      <span data-zh>执行者什么时候不再执行、开始自己规划？审查者什么时候不再审查、开始自己改写？如果没有由 harness（管理 agent 交互的编排层）强制执行的硬边界，agent 会不知不觉地越界到其他角色的职责范围。LLM 是通才——只要看起来有帮助，它们不管被分配了什么角色都会照做。</span>
+    </p>
+
+    <p>
+      <span data-en><strong>Concrete example:</strong> We gave the Executor a clear mandate: "Execute the steps in the plan. Do not modify the plan." Within the first week, we found the Executor routinely adding steps it deemed "obviously necessary" — a classic "while I'm here, I should also..." pattern. In one case, the plan said "add input validation to the API endpoint." The Executor added validation, then also refactored the error handling, renamed variables for consistency, and added logging — none of which were in the plan. The Critic then had to review a diff four times larger than expected, couldn't tell which changes were planned vs. improvised, and approved the whole thing because each individual change looked reasonable.</span>
+      <span data-zh><strong>具体案例：</strong>我们给执行者的指令很明确："按计划中的步骤执行，不要修改计划。"上线第一周我们就发现，执行者经常添加它认为"显然有必要"的步骤——典型的"既然都到这里了，顺便也......"模式。有一次，计划是"给 API 端点加输入验证"。执行者加了验证之后，又重构了错误处理、重命名了变量以保持一致性、还加了日志——这些全不在计划中。审查者随后要审查一个比预期大四倍的 diff，无法分辨哪些改动是计划内的、哪些是即兴发挥的，最终因为每项改动单独看都合理而全部通过了。</span>
+    </p>
+
+    <p>
+      <span data-en>Scope creep in human teams is a management problem. Scope creep in agent teams is a systems problem — because the agent doesn't know it's creeping. It genuinely believes it's being helpful. The fix isn't better prompting; it's constraining what the agent <em>can do</em> at the tool level (e.g., the Executor can call file-write tools, but cannot call the planning tool).</span>
+      <span data-zh>在人类团队中，范围蔓延是管理问题。在 agent 团队中，它是系统问题——因为 agent 不知道自己在越界，它真心认为自己在帮忙。解决方法不是写更好的提示词，而是在工具层面限制 agent <em>能做什么</em>（例如，执行者可以调用文件写入工具，但不能调用规划工具）。</span>
+    </p>
+
+    <!-- ================================================================ -->
+    <!-- FAILURE MODE 3: INFINITE REWORK LOOPS -->
+    <!-- ================================================================ -->
+
+    <h2><span data-en>Failure Mode 3: Infinite Rework Loops</span><span data-zh>失败模式三：无限返工循环</span></h2>
+
+    <p>
+      <span data-en>Critic rejects. Planner revises. Executor rebuilds. Critic rejects again. Without a loop counter or convergence check (a mechanism to detect whether successive iterations are actually making progress), this cycles indefinitely. The system burns tokens, time, and — if the Executor has write access — leaves behind a trail of half-finished changes.</span>
+      <span data-zh>审查者驳回。规划者修改。执行者重建。审查者再次驳回。如果没有循环计数器或收敛检查（检测连续迭代是否真正取得进展的机制），这会无限循环下去。系统消耗 token、消耗时间——如果执行者有写权限——还会留下一堆半成品。</span>
+    </p>
+
+    <p>
+      <span data-en><strong>Concrete example:</strong> The Critic was configured with a set of quality criteria: code must have error handling, tests must pass, no hardcoded values. The Executor produced code that met all criteria — but the Critic also had an implicit standard for "code elegance" that wasn't in the criteria. It kept rejecting with feedback like "this could be more idiomatic" and "consider a more elegant approach." The Executor would refactor, producing different-but-equivalent code. The Critic would find new aesthetic objections. We discovered the loop after 7 iterations and roughly $12 in API costs for what should have been a 30-second task.</span>
+      <span data-zh><strong>具体案例：</strong>审查者被配置了一组质量标准：代码必须有错误处理、测试必须通过、不能有硬编码值。执行者产出的代码满足了所有标准——但审查者还有一个不在标准列表中的隐性要求："代码优雅性"。它不断以"这里可以更地道""考虑一种更优雅的方式"为由驳回。执行者就重构，产出不同但等价的代码。审查者再发现新的审美问题。我们在第 7 轮迭代后才发现这个循环，一个本该 30 秒完成的任务耗费了约 12 美元的 API 费用。</span>
+    </p>
+
+    <p>
+      <span data-en>The root cause is an <strong>irreconcilable gap</strong> between the Critic's standards and the Executor's capabilities. The Critic can always find something to criticize — it's an LLM, creativity is unlimited. The Executor can always produce a new version — it's an LLM, patience is unlimited. Neither agent has an incentive to stop. The loop is stable from each agent's local perspective, even though it's wasteful from a system perspective.</span>
+      <span data-zh>根本原因是审查者的标准和执行者的能力之间存在<strong>不可调和的差距</strong>。审查者总能找到可以批评的地方——它是 LLM，创造力无限。执行者总能产出新版本——它是 LLM，耐心无限。两个 agent 都没有停下来的动机。从每个 agent 的局部视角看这个循环是稳定的，尽管从系统角度看它是浪费。</span>
+    </p>
+
+    <!-- ================================================================ -->
+    <!-- FAILURE MODE 4: MAKER-CHECKER THEATER -->
+    <!-- ================================================================ -->
+
+    <h2><span data-en>Failure Mode 4: Maker-Checker Theater</span><span data-zh>失败模式四：提议-复核走过场</span></h2>
+
+    <p>
+      <span data-en>In high-stakes decisions, you want a <strong>maker-checker pattern</strong> (also called "four-eyes principle"): one agent proposes, another independently validates. This is a well-established control in finance, aviation, and healthcare. The idea is that the checker catches errors the maker missed because the checker reasons independently.</span>
+      <span data-zh>在高风险决策中，你需要一个<strong>提议-复核模式</strong>（也叫"四眼原则"）：一个 agent 提出方案，另一个独立验证。这是金融、航空、医疗等领域行之有效的控制手段。核心思想是：复核者因为独立推理，能发现提议者遗漏的错误。</span>
+    </p>
+
+    <p>
+      <span data-en>The failure: <strong>both roles use the same model, the same context, and often the same prompt structure.</strong> The checker doesn't reason independently. It reasons identically — and confirms identically. In our testing, when the maker produced a subtly wrong answer (e.g., off-by-one in a date calculation), the checker confirmed it correct 89% of the time. The checker wasn't checking; it was echoing. "Independent verification" with shared reasoning isn't verification. It's theater.</span>
+      <span data-zh>失败之处在于：<strong>两个角色用同一个模型、同一份上下文，往往还用相同的提示词结构。</strong>复核者不是独立推理，而是以相同方式推理——然后以相同方式确认。在我们的测试中，当提议者产出一个微妙的错误答案（比如日期计算差一天）时，复核者有 89% 的概率确认它是正确的。复核者没有在复核；它在回声。用共享推理做"独立验证"不是验证，是走过场。</span>
+    </p>
+
+    <p>
+      <span data-en>This is particularly dangerous because it creates a false sense of security. The team sees "two agents agreed" and assumes the answer was validated. In reality, one agent was wrong and the other was a mirror. We call this "consensus without independence" — the multi-agent equivalent of copying someone's homework and both submitting the same wrong answer.</span>
+      <span data-zh>这特别危险，因为它制造了虚假的安全感。团队看到"两个 agent 达成一致"就以为答案经过了验证。实际上是一个 agent 搞错了，另一个只是它的镜像。我们称之为"无独立性的共识"——多 agent 版本的抄作业，两个人交了同一份错误答案。</span>
+    </p>
+
+    <!-- ================================================================ -->
+    <!-- FAILURE MODE 5: ARBITRATION DEADLOCKS -->
+    <!-- ================================================================ -->
+
+    <h2><span data-en>Failure Mode 5: Arbitration Deadlocks</span><span data-zh>失败模式五：仲裁死锁</span></h2>
+
+    <p>
+      <span data-en>Two agents disagree. Who wins? This question sounds simple until you realize there's no good default answer. Without explicit arbitration rules (coded decision criteria that determine how conflicts are resolved), the system either picks randomly, defers to the last speaker, or escalates everything to a human — which defeats the purpose of automation.</span>
+      <span data-zh>两个 agent 意见不一致。听谁的？这个问题听起来简单，直到你意识到没有一个好的默认答案。如果没有明确的仲裁规则（确定如何解决冲突的编码决策标准），系统要么随机选一个、要么听最后发言者的、要么所有东西都升级给人类——这就失去了自动化的意义。</span>
+    </p>
+
+    <p>
+      <span data-en><strong>Concrete example:</strong> The Planner said "use approach A — a batch processing strategy." The Critic reviewed the Executor's implementation and said "approach A has scalability risk X under peak load; use approach B — a streaming strategy." Both were right within their own reasoning. The Planner's analysis was based on average load patterns. The Critic's analysis was based on worst-case scenarios. Without coded decision criteria — such as "if the dispute involves load handling, prioritize worst-case analysis" — the system entered an LLM debate. The Planner defended its choice. The Critic defended its objection. They went back and forth for 4 rounds, generating progressively longer arguments, before the human operator noticed and intervened.</span>
+      <span data-zh><strong>具体案例：</strong>规划者说"使用方案 A——批处理策略"。审查者审查了执行者的实现后说"方案 A 在峰值负载下有可扩展性风险 X，应使用方案 B——流处理策略"。在各自的推理框架内两者都是对的：规划者的分析基于平均负载模式，审查者的分析基于最坏情况。没有编码的决策标准（比如"如果争议涉及负载处理，优先考虑最坏情况分析"），系统进入了 LLM 辩论。规划者为自己的选择辩护，审查者为自己的反对辩护。它们来回辩了 4 轮，论述越来越长，直到人类操作员注意到并介入。</span>
+    </p>
+
+    <p>
+      <span data-en>LLMs are very good at generating arguments. They are very bad at converging on a decision. Without external arbitration logic, agent debates are stable — both sides will keep producing reasonable-sounding arguments indefinitely. This is different from the rework loop: in a rework loop, the Executor is trying to satisfy the Critic. In an arbitration deadlock, neither agent is trying to satisfy the other. They're both trying to persuade.</span>
+      <span data-zh>LLM 非常擅长生成论据，却非常不擅长收敛到一个决策。没有外部仲裁逻辑，agent 辩论是稳态的——双方会无限期地继续产出听起来合理的论点。这和返工循环不同：在返工循环中，执行者在努力满足审查者的要求；在仲裁死锁中，两个 agent 都不是在试图满足对方，而是都在试图说服对方。</span>
+    </p>
+
+    <!-- ================================================================ -->
+    <!-- ARCHITECTURE DIAGRAM 2: FAILURE POINTS ANNOTATED -->
+    <!-- ================================================================ -->
+
+    <h2><span data-en>Failure Points on the Map</span><span data-zh>失败点分布图</span></h2>
+
+    <p>
+      <span data-en>Here's the same architecture, annotated with where each failure mode occurs. Notice that none of the failure points are inside a single agent — they're all at the boundaries.</span>
+      <span data-zh>这是同一个架构图，标注了每种失败模式发生的位置。注意：没有一个故障点在单个 agent 内部——它们全部在边界上。</span>
+    </p>
+
+    <svg viewBox="0 0 720 500" width="100%" xmlns="http://www.w3.org/2000/svg" style="margin: 24px 0; border-radius: 12px;">
+      <defs>
+        <marker id="arrow2" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
+          <polygon points="0 0, 10 3.5, 0 7" fill="#3b82f6"/>
+        </marker>
+        <marker id="arrow2-orange" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
+          <polygon points="0 0, 10 3.5, 0 7" fill="#f59e0b"/>
+        </marker>
+        <marker id="arrow2-red" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
+          <polygon points="0 0, 10 3.5, 0 7" fill="#ef4444"/>
+        </marker>
+      </defs>
+      <rect width="720" height="500" rx="12" fill="#1e1e2e"/>
+
+      <!-- Title -->
+      <text x="360" y="30" text-anchor="middle" fill="#e2e8f0" font-family="Inter,sans-serif" font-size="14" font-weight="700">Failure Points Annotated</text>
+      <text x="360" y="48" text-anchor="middle" fill="#a1a1aa" font-family="Inter,sans-serif" font-size="10">失败点标注图</text>
+
+      <!-- Task Input -->
+      <rect x="20" y="195" width="100" height="50" rx="8" fill="#2a2a3e" stroke="#3b82f6" stroke-width="1.5"/>
+      <text x="70" y="216" text-anchor="middle" fill="#e2e8f0" font-family="Inter,sans-serif" font-size="12" font-weight="600">Task Input</text>
+      <text x="70" y="232" text-anchor="middle" fill="#a1a1aa" font-family="Inter,sans-serif" font-size="9">任务输入</text>
+
+      <!-- Arrow: Input → Planner -->
+      <line x1="120" y1="220" x2="155" y2="220" stroke="#3b82f6" stroke-width="1.5" marker-end="url(#arrow2)"/>
+
+      <!-- Planner -->
+      <rect x="165" y="185" width="110" height="70" rx="8" fill="#1e3a5f" stroke="#3b82f6" stroke-width="2"/>
+      <text x="220" y="214" text-anchor="middle" fill="#e2e8f0" font-family="Inter,sans-serif" font-size="13" font-weight="700">Planner</text>
+      <text x="220" y="232" text-anchor="middle" fill="#93c5fd" font-family="Inter,sans-serif" font-size="9">规划者</text>
+      <text x="220" y="244" text-anchor="middle" fill="#93c5fd" font-family="Inter,sans-serif" font-size="9">generates plan</text>
+
+      <!-- FAILURE 1 annotation: between Planner and Executor -->
+      <rect x="290" y="100" width="140" height="48" rx="6" fill="#3f1515" stroke="#ef4444" stroke-width="1.5"/>
+      <text x="360" y="118" text-anchor="middle" fill="#fca5a5" font-family="Inter,sans-serif" font-size="9" font-weight="700">F1: Context Loss</text>
+      <text x="360" y="132" text-anchor="middle" fill="#fca5a5" font-family="Inter,sans-serif" font-size="8">上下文丢失</text>
+      <text x="360" y="143" text-anchor="middle" fill="#ef9a9a" font-family="Inter,sans-serif" font-size="7">Reasoning lost in handoff</text>
+      <line x1="360" y1="148" x2="360" y2="183" stroke="#ef4444" stroke-width="1" stroke-dasharray="3,2" marker-end="url(#arrow2-red)"/>
+
+      <!-- Arrow: Planner → Checkpoint (with F1 zone) -->
+      <line x1="275" y1="220" x2="305" y2="220" stroke="#3b82f6" stroke-width="1.5" marker-end="url(#arrow2)"/>
+
+      <!-- Human Checkpoint -->
+      <rect x="315" y="195" width="80" height="50" rx="25" fill="#2a2a3e" stroke="#22c55e" stroke-width="1.5" stroke-dasharray="4,3"/>
+      <text x="355" y="216" text-anchor="middle" fill="#86efac" font-family="Inter,sans-serif" font-size="10" font-weight="600">Human OK</text>
+      <text x="355" y="230" text-anchor="middle" fill="#6ee7a0" font-family="Inter,sans-serif" font-size="8">人工审批</text>
+
+      <!-- Arrow: Checkpoint → Executor -->
+      <line x1="395" y1="220" x2="425" y2="220" stroke="#3b82f6" stroke-width="1.5" marker-end="url(#arrow2)"/>
+
+      <!-- Executor -->
+      <rect x="435" y="185" width="110" height="70" rx="8" fill="#1e3a5f" stroke="#3b82f6" stroke-width="2"/>
+      <text x="490" y="214" text-anchor="middle" fill="#e2e8f0" font-family="Inter,sans-serif" font-size="13" font-weight="700">Executor</text>
+      <text x="490" y="232" text-anchor="middle" fill="#93c5fd" font-family="Inter,sans-serif" font-size="9">执行者</text>
+      <text x="490" y="244" text-anchor="middle" fill="#93c5fd" font-family="Inter,sans-serif" font-size="9">runs steps</text>
+
+      <!-- FAILURE 2 annotation: on Executor -->
+      <rect x="455" y="74" width="140" height="48" rx="6" fill="#3f1515" stroke="#ef4444" stroke-width="1.5"/>
+      <text x="525" y="92" text-anchor="middle" fill="#fca5a5" font-family="Inter,sans-serif" font-size="9" font-weight="700">F2: Role Confusion</text>
+      <text x="525" y="106" text-anchor="middle" fill="#fca5a5" font-family="Inter,sans-serif" font-size="8">角色越界</text>
+      <text x="525" y="117" text-anchor="middle" fill="#ef9a9a" font-family="Inter,sans-serif" font-size="7">Executor modifies plan</text>
+      <line x1="500" y1="122" x2="490" y2="183" stroke="#ef4444" stroke-width="1" stroke-dasharray="3,2" marker-end="url(#arrow2-red)"/>
+
+      <!-- Arrow: Executor → Critic -->
+      <line x1="545" y1="220" x2="575" y2="220" stroke="#3b82f6" stroke-width="1.5" marker-end="url(#arrow2)"/>
+
+      <!-- Critic -->
+      <rect x="585" y="185" width="110" height="70" rx="8" fill="#1e3a5f" stroke="#3b82f6" stroke-width="2"/>
+      <text x="640" y="214" text-anchor="middle" fill="#e2e8f0" font-family="Inter,sans-serif" font-size="13" font-weight="700">Critic</text>
+      <text x="640" y="232" text-anchor="middle" fill="#93c5fd" font-family="Inter,sans-serif" font-size="9">审查者</text>
+      <text x="640" y="244" text-anchor="middle" fill="#93c5fd" font-family="Inter,sans-serif" font-size="9">reviews output</text>
+
+      <!-- FAILURE 4 annotation: on Critic -->
+      <rect x="610" y="74" width="140" height="48" rx="6" fill="#3f1515" stroke="#ef4444" stroke-width="1.5"/>
+      <text x="680" y="92" text-anchor="middle" fill="#fca5a5" font-family="Inter,sans-serif" font-size="9" font-weight="700">F4: Checker Theater</text>
+      <text x="680" y="106" text-anchor="middle" fill="#fca5a5" font-family="Inter,sans-serif" font-size="8">复核走过场</text>
+      <text x="680" y="117" text-anchor="middle" fill="#ef9a9a" font-family="Inter,sans-serif" font-size="7">Same model = same bias</text>
+      <line x1="660" y1="122" x2="645" y2="183" stroke="#ef4444" stroke-width="1" stroke-dasharray="3,2" marker-end="url(#arrow2-red)"/>
+
+      <!-- Decision diamond -->
+      <polygon points="640,300 680,340 640,380 600,340" fill="#2a2a3e" stroke="#f59e0b" stroke-width="1.5"/>
+      <text x="640" y="337" text-anchor="middle" fill="#fbbf24" font-family="Inter,sans-serif" font-size="9" font-weight="600">Decision</text>
+      <text x="640" y="350" text-anchor="middle" fill="#fbbf24" font-family="Inter,sans-serif" font-size="8">决策</text>
+
+      <!-- Arrow: Critic → Decision -->
+      <line x1="640" y1="255" x2="640" y2="298" stroke="#f59e0b" stroke-width="1.5" marker-end="url(#arrow2-orange)"/>
+
+      <!-- FAILURE 5 annotation: at Decision -->
+      <rect x="478" y="345" width="140" height="48" rx="6" fill="#3f1515" stroke="#ef4444" stroke-width="1.5"/>
+      <text x="548" y="363" text-anchor="middle" fill="#fca5a5" font-family="Inter,sans-serif" font-size="9" font-weight="700">F5: Arbitration Deadlock</text>
+      <text x="548" y="377" text-anchor="middle" fill="#fca5a5" font-family="Inter,sans-serif" font-size="8">仲裁死锁</text>
+      <text x="548" y="388" text-anchor="middle" fill="#ef9a9a" font-family="Inter,sans-serif" font-size="7">No coded decision rules</text>
+      <line x1="578" y1="368" x2="600" y2="340" stroke="#ef4444" stroke-width="1" stroke-dasharray="3,2"/>
+
+      <!-- Output (Approve) -->
+      <rect x="640" y="405" width="70" height="30" rx="8" fill="#16a34a" stroke="#22c55e" stroke-width="1.5"/>
+      <text x="675" y="424" text-anchor="middle" fill="#e2e8f0" font-family="Inter,sans-serif" font-size="10" font-weight="600">Output</text>
+
+      <!-- Arrow: Decision → Output -->
+      <line x1="660" y1="365" x2="675" y2="403" stroke="#22c55e" stroke-width="1.5" marker-end="url(#arrow2)"/>
+
+      <!-- Rework feedback loop -->
+      <path d="M 600,340 L 400,340 Q 360,340 360,310 L 360,280 Q 360,265 340,265 L 245,265 Q 220,265 220,257" fill="none" stroke="#f59e0b" stroke-width="1.5" stroke-dasharray="5,3" marker-end="url(#arrow2-orange)"/>
+
+      <!-- FAILURE 3 annotation: on rework loop -->
+      <rect x="160" y="290" width="140" height="48" rx="6" fill="#3f1515" stroke="#ef4444" stroke-width="1.5"/>
+      <text x="230" y="308" text-anchor="middle" fill="#fca5a5" font-family="Inter,sans-serif" font-size="9" font-weight="700">F3: Infinite Rework</text>
+      <text x="230" y="322" text-anchor="middle" fill="#fca5a5" font-family="Inter,sans-serif" font-size="8">无限返工</text>
+      <text x="230" y="333" text-anchor="middle" fill="#ef9a9a" font-family="Inter,sans-serif" font-size="7">Critic > Executor capability</text>
+      <line x1="280" y1="315" x2="350" y2="300" stroke="#ef4444" stroke-width="1" stroke-dasharray="3,2"/>
+
+      <!-- Legend -->
+      <rect x="20" y="445" width="280" height="44" rx="6" fill="#252538" opacity="0.8"/>
+      <rect x="30" y="455" width="10" height="10" rx="2" fill="#3f1515" stroke="#ef4444" stroke-width="1"/>
+      <text x="46" y="464" fill="#fca5a5" font-family="Inter,sans-serif" font-size="8">Failure point 失败点</text>
+      <line x1="120" y1="460" x2="145" y2="460" stroke="#3b82f6" stroke-width="1.5"/>
+      <text x="150" y="464" fill="#a1a1aa" font-family="Inter,sans-serif" font-size="8">Forward flow 正向流</text>
+      <line x1="230" y1="460" x2="255" y2="460" stroke="#f59e0b" stroke-width="1.5" stroke-dasharray="5,3"/>
+      <text x="260" y="464" fill="#a1a1aa" font-family="Inter,sans-serif" font-size="8">Feedback 反馈</text>
+      <text x="35" y="481" fill="#a1a1aa" font-family="Inter,sans-serif" font-size="7">All failure points occur at boundaries, not inside agents · 所有失败点都在边界上，不在 agent 内部</text>
+    </svg>
+
+    <!-- ================================================================ -->
+    <!-- WHAT WE DID ABOUT IT -->
+    <!-- ================================================================ -->
+
+    <h2><span data-en>What We Did About It</span><span data-zh>我们怎么解决的</span></h2>
+
+    <p>
+      <span data-en>None of these have perfect solutions. But each has mitigations that reduced the failure rate from "constant" to "occasional." Here's what worked for us:</span>
+      <span data-zh>这些问题没有一个有完美解决方案。但每一个都有缓解措施，把故障率从"频繁"降到了"偶发"。以下是对我们有效的做法：</span>
+    </p>
+
+    <h3><span data-en>Context Loss: Structured Handoff Schema</span><span data-zh>上下文丢失：结构化交接协议</span></h3>
+
+    <p>
+      <span data-en>We stopped passing freeform text between roles. Instead, every handoff uses a structured schema that carries not just the plan, but the reasoning behind it. The Planner's output includes: the chosen approach, the alternatives considered, the reasons each alternative was rejected, and the constraints that influenced the decision. The Executor receives all of this as immutable context. It can't modify the reasoning, but it can reference it when making execution-level decisions. This didn't eliminate context loss entirely — you can't force the Executor to read the reasoning — but it made the information available when it mattered.</span>
+      <span data-zh>我们不再在角色之间传递自由格式的文本。每次交接都使用一个结构化 schema，不仅包含计划本身，还包含背后的推理。规划者的输出包括：选定的方案、考虑过的备选方案、每个备选方案被否决的原因、以及影响决策的约束条件。执行者以不可变上下文的形式接收这一切——它不能修改推理，但可以在做执行层面的决策时参考。这没有完全消除上下文丢失——你无法强制执行者阅读推理——但在关键时刻信息是可用的。</span>
+    </p>
+
+    <h3><span data-en>Role Confusion: Hard Boundaries at the Tool Level</span><span data-zh>角色越界：工具层面的硬边界</span></h3>
+
+    <p>
+      <span data-en>Prompts saying "stay in your role" don't work reliably. What does work: constraining the agent's available tools. The Executor can call file-write, shell-execute, and test-run tools. It cannot call the planning tool, the architecture tool, or the refactoring tool. If the Executor decides it needs to modify the plan, it has no mechanism to do so — it can only flag the issue and request a rework cycle. The Critic can produce structured review feedback (approve, reject with reason, request clarification). It cannot call any write tools. If it wants to "fix" the code, it has to express the fix as feedback that the Executor implements. This is the difference between a policy and a constraint. Policies rely on the agent's compliance. Constraints are enforced by the system.</span>
+      <span data-zh>提示词说"保持你的角色"并不可靠。有效的做法是：限制 agent 可用的工具。执行者可以调用文件写入、shell 执行和测试运行工具，不能调用规划工具、架构工具或重构工具。如果执行者认为需要修改计划，它没有机制去做——只能标记问题、请求返工周期。审查者可以产出结构化审查反馈（通过、附理由驳回、请求澄清），不能调用任何写入工具。如果它想"修复"代码，必须把修复表述为反馈，由执行者来实施。这就是策略和约束的区别：策略依赖 agent 的遵守；约束由系统强制执行。</span>
+    </p>
+
+    <h3><span data-en>Rework Loops: Per-Issue Retry Limits</span><span data-zh>返工循环：按问题设重试上限</span></h3>
+
+    <p>
+      <span data-en>We added a per-issue retry counter: each specific rejection reason gets at most 2 rework attempts. After 2 failed attempts on the same issue, the system escalates to a human with the full conversation history. This means the Critic can still reject — but not indefinitely. If the Executor can't satisfy a particular criterion in 2 tries, the gap is probably structural, not fixable by iteration. We also added a convergence check: if the Executor's output diff between iterations is below a threshold (meaning it's producing near-identical code each time), we short-circuit the loop and escalate immediately. This catches the "different but equivalent" pattern where the Executor is just rearranging the same code.</span>
+      <span data-zh>我们加了按问题的重试计数器：每个具体的驳回理由最多允许 2 次返工。同一问题 2 次失败后，系统携带完整对话历史升级给人类。这意味着审查者仍然可以驳回——但不能无限驳回。如果执行者在 2 次尝试中无法满足某项标准，差距可能是结构性的，迭代解决不了。我们还加了收敛检查：如果执行者在两次迭代之间的输出 diff 低于阈值（意味着每次产出的代码几乎相同），就立即短路循环并升级。这能捕捉到执行者只是在重新排列相同代码的"不同但等价"模式。</span>
+    </p>
+
+    <h3><span data-en>Maker-Checker Theater: Break the Symmetry</span><span data-zh>复核走过场：打破对称性</span></h3>
+
+    <p>
+      <span data-en>For the checker to actually catch errors, it needs to reason differently from the maker. We found three approaches that helped, in order of effectiveness:</span>
+      <span data-zh>要让复核者真正抓到错误，它需要以不同于提议者的方式推理。我们发现了三种有帮助的方法，按效果排序：</span>
+    </p>
+
+    <ol>
+      <li><span data-en><strong>Different models.</strong> Use a different model for the checker than the maker. Different models have different failure modes. A mistake that one model makes consistently, another might catch. This was the single most effective change.</span><span data-zh><strong>不同的模型。</strong>复核者和提议者使用不同的模型。不同模型有不同的失败模式。一个模型一贯会犯的错，另一个可能会发现。这是最有效的单项改进。</span></li>
+      <li><span data-en><strong>Different context.</strong> Don't give the checker the maker's reasoning. Give it the task, the output, and ask it to find problems. If it sees the maker's chain of thought, it follows the same path. If it starts fresh, it might take a different path.</span><span data-zh><strong>不同的上下文。</strong>不要把提议者的推理过程给复核者看。只给它任务和输出，让它找问题。如果看到提议者的思维链，它会沿着同一条路走。如果从头开始，它可能走不同的路。</span></li>
+      <li><span data-en><strong>Evidence requirement.</strong> The checker must cite evidence not present in the maker's output. "I agree this looks correct" is not valid checker output. "I verified X by checking Y, which confirms Z" is valid. This forces the checker to do actual work, not just pattern-match against the maker's reasoning.</span><span data-zh><strong>证据要求。</strong>复核者必须引用提议者输出中不存在的证据。"看起来没问题"不是有效的复核输出，"我通过检查 Y 验证了 X，确认 Z"才是。这迫使复核者做实际工作，而不是仅仅对提议者的推理做模式匹配。</span></li>
+    </ol>
+
+    <h3><span data-en>Arbitration Deadlocks: Coded Rules, Not LLM Debate</span><span data-zh>仲裁死锁：编码规则而非 LLM 辩论</span></h3>
+
+    <p>
+      <span data-en>When two agents disagree, the resolution should not involve more LLM inference. We implemented a simple arbitration framework:</span>
+      <span data-zh>当两个 agent 意见不一致时，解决方式不应该涉及更多 LLM 推理。我们实现了一个简单的仲裁框架：</span>
+    </p>
+
+    <ul>
+      <li><span data-en><strong>Typed disagreements.</strong> Every disagreement is classified into a type: correctness, performance, style, security. Each type has a coded resolution rule.</span><span data-zh><strong>类型化分歧。</strong>每个分歧被分类为一种类型：正确性、性能、风格、安全。每种类型有编码的解决规则。</span></li>
+      <li><span data-en><strong>Priority hierarchy.</strong> Security concerns override performance concerns. Correctness overrides style. This is coded, not prompted.</span><span data-zh><strong>优先级层次。</strong>安全问题优先于性能问题，正确性优先于风格。这是编码的，不是提示词中说的。</span></li>
+      <li><span data-en><strong>Human as final arbiter.</strong> If the disagreement doesn't fall into a coded category, or if both sides have equal-priority concerns, the system escalates to a human with structured context: what each agent said, what type of disagreement it is, and what the coded rules would suggest if they applied.</span><span data-zh><strong>人类是最终仲裁者。</strong>如果分歧不属于任何编码类别，或者双方的关切优先级相同，系统携带结构化上下文升级给人类：每个 agent 说了什么、属于什么类型的分歧、以及编码规则适用时会给出什么建议。</span></li>
+    </ul>
+
+    <p>
+      <span data-en>The key insight: arbitration is not an AI problem. It's a governance problem. The system needs explicit, auditable decision-making rules — the same way an organization needs a decision-rights matrix, not a meeting where everyone argues until someone gives up.</span>
+      <span data-zh>关键洞察：仲裁不是 AI 问题，是治理问题。系统需要明确、可审计的决策规则——就像一个组织需要决策权限矩阵，而不是一个所有人争论到有人放弃的会议。</span>
+    </p>
+
+    <!-- ================================================================ -->
+    <!-- CHECKLIST -->
+    <!-- ================================================================ -->
+
+    <h2><span data-en>Checklist: Multi-Agent Collaboration</span><span data-zh>清单：多 Agent 协作</span></h2>
+
+    <ol>
+      <li><span data-en><strong>Carry reasoning, not just instructions.</strong> Every handoff between roles should include the "why" alongside the "what." Use a structured schema, not freeform text. If you can't explain why a decision was made, the next agent can't respect that decision.</span><span data-zh><strong>传递推理，不只是指令。</strong>每次角色间的交接都应包含"为什么"和"做什么"。使用结构化 schema，不要用自由格式文本。如果你解释不了为什么做了某个决定，下一个 agent 就无法尊重这个决定。</span></li>
+      <li><span data-en><strong>Enforce role boundaries with tools, not prompts.</strong> Each agent should only have access to the tools its role requires. The Executor cannot call the planning tool. The Critic cannot call write tools. Constraints are more reliable than instructions.</span><span data-zh><strong>用工具约束角色边界，而非提示词。</strong>每个 agent 只应能访问其角色所需的工具。执行者不能调用规划工具，审查者不能调用写入工具。约束比指令更可靠。</span></li>
+      <li><span data-en><strong>Add retry limits and convergence checks.</strong> Every feedback loop needs a counter. Per-issue, not global — otherwise one easy fix uses up the retry budget for a hard problem. Add convergence detection: if two consecutive iterations produce near-identical output, the loop isn't making progress.</span><span data-zh><strong>加上重试限制和收敛检查。</strong>每个反馈循环都需要计数器。按问题计数，不是全局的——否则一个简单修复会耗尽困难问题的重试配额。加收敛检测：如果连续两次迭代产出近乎相同的输出，循环没有在进步。</span></li>
+      <li><span data-en><strong>Break maker-checker symmetry.</strong> If two agents serve as maker and checker, they must differ in at least one dimension: different models, different context, or different evidence requirements. Identical reasoning produces identical errors.</span><span data-zh><strong>打破提议-复核的对称性。</strong>如果两个 agent 分别担任提议者和复核者，它们至少要在一个维度上不同：不同模型、不同上下文、或不同的证据要求。相同的推理产生相同的错误。</span></li>
+      <li><span data-en><strong>Code your arbitration rules.</strong> When agents disagree, the resolution mechanism should be deterministic code, not another LLM call. Classify disagreements by type, define priority hierarchies, and escalate what can't be resolved automatically.</span><span data-zh><strong>编码你的仲裁规则。</strong>当 agent 意见不一致时，解决机制应该是确定性代码，不是另一次 LLM 调用。按类型分类分歧、定义优先级层次、把无法自动解决的升级给人类。</span></li>
+      <li><span data-en><strong>Instrument the boundaries.</strong> Log every handoff, every rework cycle, every disagreement. The failures in multi-agent systems are at the boundaries — if you're not observing the boundaries, you're flying blind.</span><span data-zh><strong>为边界加装观测。</strong>记录每次交接、每个返工周期、每次分歧。多 agent 系统的故障在边界上——如果你不观测边界，就是在盲飞。</span></li>
+      <li><span data-en><strong>Default to escalation, not autonomous resolution.</strong> When you're unsure whether the system can handle a situation, escalate to a human. It's better to over-escalate early than to silently produce wrong output. You can always reduce escalation rates later once you understand the patterns.</span><span data-zh><strong>默认升级，而非自主解决。</strong>当你不确定系统能否处理某种情况时，升级给人类。早期过度升级好过悄悄产出错误结果。一旦你理解了模式，之后总可以降低升级率。</span></li>
+    </ol>
+
+    <!-- ================================================================ -->
+    <!-- HONEST CLOSING -->
+    <!-- ================================================================ -->
+
+    <h2><span data-en>What We Haven't Solved</span><span data-zh>尚未解决的问题</span></h2>
+
+    <p>
+      <span data-en>I want to be honest about the gaps. The mitigations above reduced failures, but they didn't eliminate them.</span>
+      <span data-zh>我想坦诚地谈谈这些缺口。上面的缓解措施减少了故障，但没有消除。</span>
+    </p>
+
+    <p>
+      <span data-en><strong>Context loss is still the biggest problem.</strong> Structured handoff schemas help, but they can't capture everything the Planner considered. Some context is implicit — the Planner explored a dead end and the very fact of that exploration informed its final choice, but the dead end wasn't interesting enough to document. The Executor doesn't know what it doesn't know.</span>
+      <span data-zh><strong>上下文丢失仍然是最大的问题。</strong>结构化交接协议有帮助，但无法捕获规划者考虑过的所有东西。有些上下文是隐含的——规划者探索了一条死路，这个探索过程本身影响了最终选择，但那条死路不值得专门记录。执行者不知道自己不知道什么。</span>
+    </p>
+
+    <p>
+      <span data-en><strong>Maker-checker still fails on novel errors.</strong> Using different models helps with known error patterns. But when both models encounter a genuinely novel edge case, they can both get it wrong in the same way — not because they share reasoning, but because the error is genuinely hard. Different models help with systematic biases, not with the frontier of difficulty.</span>
+      <span data-zh><strong>提议-复核在新颖错误上仍然失效。</strong>使用不同模型有助于应对已知的错误模式。但当两个模型都遇到一个真正新颖的边界情况时，它们可能以相同的方式犯错——不是因为共享推理，而是因为错误本身就很难。不同模型有助于应对系统性偏差，但不能应对难度的前沿。</span>
+    </p>
+
+    <p>
+      <span data-en><strong>We don't have a good theory for optimal role decomposition.</strong> How many roles should a multi-agent system have? Where should the boundaries be? We made these decisions based on intuition and iteration, not theory. Three roles (Planner, Executor, Critic) worked well for our tasks, but we don't know if it's optimal, and adding a fourth role (e.g., a separate Verifier) introduced more coordination overhead than it eliminated errors.</span>
+      <span data-zh><strong>我们没有关于最优角色分解的好理论。</strong>一个多 agent 系统应该有多少个角色？边界应该画在哪里？我们基于直觉和迭代做出了这些决定，而非理论。三个角色（规划者、执行者、审查者）在我们的任务上效果不错，但不知道是否最优。尝试加第四个角色（比如单独的验证者）时，引入的协调开销比它消除的错误更多。</span>
+    </p>
+
+    <blockquote>
+      <span data-en>Multi-agent systems are not fundamentally harder than single-agent systems. They're harder in different places. Single-agent systems fail on complexity — one agent can't hold everything in context. Multi-agent systems fail on coordination — the agents can each be competent, and the system as a whole still produces wrong output because something was lost between them. If you're building a multi-agent system, spend less time optimizing individual agents and more time instrumenting the spaces between them. That's where the bugs live.</span>
+      <span data-zh>多 agent 系统并不从根本上比单 agent 系统更难，只是难在不同的地方。单 agent 系统在复杂度上失败——一个 agent 无法把所有东西放在上下文中。多 agent 系统在协调上失败——每个 agent 都可以很有能力，但系统整体仍然产出错误输出，因为有些东西在它们之间丢失了。如果你在构建多 agent 系统，少花时间优化单个 agent，多花时间观测它们之间的缝隙。Bug 就住在那里。</span>
+    </blockquote>
+
+    <div class="article-page-footer">
+      <p><span data-en>Written by Ming Zhou · 2025</span><span data-zh>作者：Ming Zhou · 2025</span></p>
+      <a href="../#writing" class="article-page-back">&larr; <span data-en>Back to all writing</span><span data-zh>返回文章列表</span></a>
+    </div>
+  </main>
+
+  <script src="../js/main.js"></script>
+</body>
+</html>

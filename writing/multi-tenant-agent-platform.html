@@ -1,0 +1,664 @@
+<!DOCTYPE html>
+<html lang="en" data-lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>From Single-Tenant to Multi-Tenant: Scaling an Agent Platform Across Teams — Ming Zhou</title>
+  <meta name="description" content="Architectural decisions and operational challenges of scaling an AI Agent platform from one team to multiple business lines in a regulated financial services environment: data isolation, per-tenant model lifecycle, policy enforcement, and observability.">
+  <meta property="og:title" content="From Single-Tenant to Multi-Tenant: Scaling an Agent Platform Across Teams — Ming Zhou">
+  <meta property="og:description" content="How to scale an AI Agent platform from one team to multiple business lines — data isolation, model lifecycle, policy enforcement, and observability in regulated environments.">
+  <meta property="og:type" content="article">
+  <meta property="og:url" content="https://mzyag.github.io/writing/multi-tenant-agent-platform.html">
+  <meta property="og:locale" content="en_US">
+  <meta property="og:site_name" content="Ming Zhou">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="From Single-Tenant to Multi-Tenant: Scaling an Agent Platform Across Teams">
+  <meta name="twitter:description" content="How to scale an AI Agent platform from one team to multiple business lines — data isolation, model lifecycle, policy enforcement, and observability in regulated environments.">
+  <meta name="author" content="Ming Zhou">
+  <link rel="canonical" href="https://mzyag.github.io/writing/multi-tenant-agent-platform.html">
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect fill='%2309090b' width='100' height='100' rx='16'/%3E%3Ctext x='50' y='72' font-family='Inter,sans-serif' font-size='64' font-weight='700' fill='%233b82f6' text-anchor='middle'%3EM%3C/text%3E%3C/svg%3E">
+  <link rel="stylesheet" href="../css/style.css">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "Article",
+    "headline": "From Single-Tenant to Multi-Tenant: Scaling an Agent Platform Across Teams",
+    "description": "Architectural decisions and operational challenges of scaling an AI Agent platform from one team to multiple business lines in a regulated financial services environment.",
+    "author": {"@type": "Person", "name": "Ming Zhou", "url": "https://mzyag.github.io/"},
+    "publisher": {"@type": "Person", "name": "Ming Zhou"},
+    "url": "https://mzyag.github.io/writing/multi-tenant-agent-platform.html",
+    "datePublished": "2025-05-22"
+  }
+  </script>
+</head>
+<body>
+
+  <nav class="nav scrolled" id="nav">
+    <div class="nav-inner">
+      <a class="nav-logo" href="../">MZ<span class="nav-logo-dot">.</span></a>
+      <div class="nav-links" id="navLinks">
+        <a href="../#projects"><span data-en>Projects</span><span data-zh>项目</span></a>
+        <a href="../#writing"><span data-en>Writing</span><span data-zh>文章</span></a>
+        <a href="../#about"><span data-en>About</span><span data-zh>关于</span></a>
+        <a href="../#contact"><span data-en>Contact</span><span data-zh>联系</span></a>
+        <button class="lang-toggle" id="langToggle" aria-label="Toggle language">
+          <span data-en>中文</span><span data-zh>EN</span>
+        </button>
+      </div>
+      <button class="nav-hamburger" id="navHamburger" aria-label="Menu">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+  </nav>
+
+  <main class="article-page">
+    <a href="../#writing" class="article-page-back">&larr; <span data-en>Back to all writing</span><span data-zh>返回文章列表</span></a>
+
+    <div class="article-page-meta">
+      <span>2025</span>
+      <span><span data-en>14 min read</span><span data-zh>14 分钟阅读</span></span>
+    </div>
+
+    <h1>
+      <span data-en>From Single-Tenant to Multi-Tenant: Scaling an Agent Platform Across Teams</span>
+      <span data-zh>从单租户到多租户：跨团队扩展 Agent 平台</span>
+    </h1>
+
+    <p class="article-lead">
+      <span data-en>If your AI agent platform is about to serve its second team, you're about to discover that everything you built for one team was implicitly single-tenant. The config paths assume one set of policies. The model pool assumes one version is good enough for everyone. The logs are a flat stream with no tenant attribution. The vector store is one big collection where everyone's documents swim together. None of this felt wrong when there was only one team — it felt lean. But the moment team two arrives with different risk thresholds, different compliance requirements, and a different model version preference, you realize you didn't build a platform. You built a bespoke system wearing a platform costume. This article covers what it actually takes to go multi-tenant: the isolation layers, the architectural decisions, the operational challenges, and — honestly — the things we got wrong along the way.</span>
+      <span data-zh>如果你的 AI Agent 平台即将服务第二个团队，你会发现之前为一个团队构建的一切都是隐式单租户的。配置路径默认只有一套策略。模型池假设一个版本对所有人都够用。日志是一条没有租户归属的扁平流。向量存储是一个大集合，所有人的文档混在一起。只有一个团队时这些都不觉得有问题——反而觉得精简。但当第二个团队带着不同的风控阈值、不同的合规要求、不同的模型版本偏好走进来，你就会意识到你并没有建一个平台，你建的是一个穿着平台外套的定制系统。这篇文章讲的是真正走向多租户需要什么：隔离层、架构决策、运维挑战——以及我们一路上犯的那些错误。</span>
+    </p>
+
+    <!-- ================================================================== -->
+    <h2><span data-en>The Single-Tenant Trap</span><span data-zh>单租户陷阱</span></h2>
+
+    <p>
+      <span data-en>Here's what a single-tenant agent platform typically looks like. Not because anyone designed it this way, but because it grew organically to serve one team well:</span>
+      <span data-zh>以下是单租户 Agent 平台的典型面貌。不是因为有人刻意这样设计，而是它自然生长为很好地服务一个团队的样子：</span>
+    </p>
+
+    <ul>
+      <li>
+        <span data-en><strong>Hardcoded config paths.</strong> The policy rules live in a YAML file. There's one file. It has no concept of "which team does this apply to" because there's only one team.</span>
+        <span data-zh><strong>硬编码的配置路径。</strong>策略规则在一个 YAML 文件里，就一个文件。它没有"这条规则属于哪个团队"的概念，因为只有一个团队。</span>
+      </li>
+      <li>
+        <span data-en><strong>Shared model instances.</strong> The platform loads one model, serves all requests through it. Version upgrades are global — everyone gets the new model at the same time, ready or not.</span>
+        <span data-zh><strong>共享的模型实例。</strong>平台加载一个模型，所有请求通过同一个实例服务。版本升级是全局的——所有人同时用上新模型，不管准没准备好。</span>
+      </li>
+      <li>
+        <span data-en><strong>Global policy rules.</strong> Risk thresholds, escalation triggers, citation requirements — all defined once. If the compliance team says "require human approval for outputs above risk score 0.7," that applies to every use case, even the internal ops team whose tasks are all low-risk.</span>
+        <span data-zh><strong>全局策略规则。</strong>风控阈值、升级触发条件、引用要求——全部定义一次。如果合规团队说"风险分高于 0.7 的输出需要人工审批"，这条规则就适用于每个场景，即使内部运维团队的任务全是低风险的。</span>
+      </li>
+      <li>
+        <span data-en><strong>Flat log streams.</strong> Every agent execution goes to the same log. When something breaks, you grep through a firehose of interleaved entries from different contexts, trying to reconstruct what happened. There's no <code>tenant_id</code> field because there's no concept of tenants.</span>
+        <span data-zh><strong>扁平的日志流。</strong>每次 Agent 执行都写到同一个日志。出了问题就在不同上下文交错的洪流里 grep，试图还原发生了什么。没有 <code>tenant_id</code> 字段，因为根本没有租户的概念。</span>
+      </li>
+      <li>
+        <span data-en><strong>One big knowledge store.</strong> Documents, embeddings, retrieval indices — all in one collection. When the agent retrieves context, it searches everything. This works fine when "everything" belongs to one team. It becomes a data isolation incident when it doesn't.</span>
+        <span data-zh><strong>一个大知识库。</strong>文档、向量嵌入、检索索引——全在一个集合里。Agent 检索上下文时搜索所有内容。当"所有内容"属于一个团队时没问题。当不属于时，这就变成了数据隔离事故。</span>
+      </li>
+    </ul>
+
+    <p>
+      <span data-en>This setup feels fine — even elegant — for one team. The config is simple, deployments are straightforward, debugging is manageable. The problem isn't that it's bad engineering. It's that every choice implicitly assumed a single context. And those implicit assumptions become explicit bugs the day you onboard a second tenant.</span>
+      <span data-zh>对一个团队来说，这套设置甚至显得优雅。配置简单，部署直接，调试可控。问题不在于工程质量差，而在于每个选择都隐式假设了单一上下文。当你接入第二个租户的那天，这些隐式假设就变成了显式的 bug。</span>
+    </p>
+
+    <!-- ================================================================== -->
+    <h2><span data-en>The Multi-Tenant Architecture</span><span data-zh>多租户架构</span></h2>
+
+    <p>
+      <span data-en>Before diving into each isolation layer, here's the target architecture. The key insight: multi-tenancy in an agent platform isn't just "add a tenant_id column." It's isolation across four dimensions — data, policy, model lifecycle, and observability — with a shared platform layer that routes and enforces boundaries.</span>
+      <span data-zh>在深入每个隔离层之前，先看目标架构。核心洞察：Agent 平台的多租户不是"加个 tenant_id 列"就完事。它是跨四个维度的隔离——数据、策略、模型生命周期和可观测性——由一个共享平台层负责路由和边界执行。</span>
+    </p>
+
+    <!-- Diagram 1: Multi-Tenant Platform Architecture -->
+    <svg width="100%" viewBox="0 0 900 680" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Multi-Tenant Agent Platform Architecture Diagram">
+      <defs>
+        <marker id="arrow1" viewBox="0 0 10 7" refX="10" refY="3.5" markerWidth="10" markerHeight="7" orient="auto-start-reverse">
+          <path d="M 0 0 L 10 3.5 L 0 7 z" fill="#3b82f6"/>
+        </marker>
+        <filter id="shadow1" x="-4%" y="-4%" width="108%" height="108%">
+          <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#000" flood-opacity="0.3"/>
+        </filter>
+      </defs>
+
+      <!-- Background -->
+      <rect width="900" height="680" rx="12" fill="#1e1e2e"/>
+
+      <!-- Title -->
+      <text x="450" y="32" text-anchor="middle" fill="#e2e8f0" font-family="Inter,sans-serif" font-size="15" font-weight="600">Multi-Tenant Agent Platform Architecture</text>
+
+      <!-- ===== Tenant Layer (top) ===== -->
+      <rect x="40" y="50" width="820" height="70" rx="8" fill="#1a1a2a" stroke="#3f3f46" stroke-width="1"/>
+      <text x="60" y="72" fill="#a1a1aa" font-family="Inter,sans-serif" font-size="11" font-weight="500">TENANTS</text>
+
+      <rect x="80" y="82" width="160" height="30" rx="6" fill="#1e3a5f" stroke="#3b82f6" stroke-width="1.5" filter="url(#shadow1)"/>
+      <text x="160" y="102" text-anchor="middle" fill="#e2e8f0" font-family="Inter,sans-serif" font-size="12" font-weight="500">Team A (Fund Compliance)</text>
+
+      <rect x="280" y="82" width="160" height="30" rx="6" fill="#1e3a5f" stroke="#3b82f6" stroke-width="1.5" filter="url(#shadow1)"/>
+      <text x="360" y="102" text-anchor="middle" fill="#e2e8f0" font-family="Inter,sans-serif" font-size="12" font-weight="500">Team B (Credit Risk)</text>
+
+      <rect x="480" y="82" width="160" height="30" rx="6" fill="#1e3a5f" stroke="#3b82f6" stroke-width="1.5" filter="url(#shadow1)"/>
+      <text x="560" y="102" text-anchor="middle" fill="#e2e8f0" font-family="Inter,sans-serif" font-size="12" font-weight="500">Team C (Internal Ops)</text>
+
+      <rect x="680" y="82" width="140" height="30" rx="6" fill="#1a2a3a" stroke="#3f3f46" stroke-width="1" stroke-dasharray="4,3"/>
+      <text x="750" y="102" text-anchor="middle" fill="#71717a" font-family="Inter,sans-serif" font-size="12">Team D ... N</text>
+
+      <!-- Arrows: tenants -> gateway -->
+      <line x1="160" y1="112" x2="450" y2="153" stroke="#3b82f6" stroke-width="1.5" marker-end="url(#arrow1)"/>
+      <line x1="360" y1="112" x2="450" y2="153" stroke="#3b82f6" stroke-width="1.5" marker-end="url(#arrow1)"/>
+      <line x1="560" y1="112" x2="450" y2="153" stroke="#3b82f6" stroke-width="1.5" marker-end="url(#arrow1)"/>
+
+      <!-- ===== Shared Platform Layer ===== -->
+      <rect x="40" y="140" width="820" height="200" rx="8" fill="#1a1a2a" stroke="#3f3f46" stroke-width="1"/>
+      <text x="60" y="162" fill="#a1a1aa" font-family="Inter,sans-serif" font-size="11" font-weight="500">SHARED PLATFORM LAYER</text>
+
+      <!-- API Gateway -->
+      <rect x="350" y="170" width="200" height="36" rx="8" fill="#2563eb" filter="url(#shadow1)"/>
+      <text x="450" y="193" text-anchor="middle" fill="#ffffff" font-family="Inter,sans-serif" font-size="13" font-weight="600">API Gateway</text>
+
+      <!-- Arrow: gateway -> router -->
+      <line x1="450" y1="206" x2="450" y2="224" stroke="#3b82f6" stroke-width="1.5" marker-end="url(#arrow1)"/>
+
+      <!-- Tenant Router -->
+      <rect x="350" y="224" width="200" height="36" rx="8" fill="#1e40af" filter="url(#shadow1)"/>
+      <text x="450" y="247" text-anchor="middle" fill="#ffffff" font-family="Inter,sans-serif" font-size="13" font-weight="600">Tenant Router</text>
+
+      <!-- Arrows: router -> engines -->
+      <line x1="350" y1="260" x2="145" y2="284" stroke="#3b82f6" stroke-width="1.2" marker-end="url(#arrow1)"/>
+      <line x1="410" y1="260" x2="345" y2="284" stroke="#3b82f6" stroke-width="1.2" marker-end="url(#arrow1)"/>
+      <line x1="490" y1="260" x2="555" y2="284" stroke="#3b82f6" stroke-width="1.2" marker-end="url(#arrow1)"/>
+      <line x1="550" y1="260" x2="755" y2="284" stroke="#3b82f6" stroke-width="1.2" marker-end="url(#arrow1)"/>
+
+      <!-- Core engines row -->
+      <rect x="60" y="284" width="170" height="40" rx="8" fill="#1e293b" stroke="#334155" stroke-width="1" filter="url(#shadow1)"/>
+      <text x="145" y="309" text-anchor="middle" fill="#e2e8f0" font-family="Inter,sans-serif" font-size="12" font-weight="500">Orchestration Engine</text>
+
+      <rect x="260" y="284" width="170" height="40" rx="8" fill="#1e293b" stroke="#334155" stroke-width="1" filter="url(#shadow1)"/>
+      <text x="345" y="309" text-anchor="middle" fill="#e2e8f0" font-family="Inter,sans-serif" font-size="12" font-weight="500">Model Pool</text>
+
+      <rect x="460" y="284" width="170" height="40" rx="8" fill="#1e293b" stroke="#334155" stroke-width="1" filter="url(#shadow1)"/>
+      <text x="545" y="309" text-anchor="middle" fill="#e2e8f0" font-family="Inter,sans-serif" font-size="12" font-weight="500">Policy Engine</text>
+
+      <rect x="660" y="284" width="170" height="40" rx="8" fill="#1e293b" stroke="#334155" stroke-width="1" filter="url(#shadow1)"/>
+      <text x="745" y="309" text-anchor="middle" fill="#e2e8f0" font-family="Inter,sans-serif" font-size="12" font-weight="500">Knowledge Store</text>
+
+      <!-- ===== Per-Tenant Isolation Layer ===== -->
+      <rect x="40" y="355" width="820" height="155" rx="8" fill="#0f172a" stroke="#1e40af" stroke-width="1" stroke-dasharray="6,3"/>
+      <text x="60" y="377" fill="#60a5fa" font-family="Inter,sans-serif" font-size="11" font-weight="600">PER-TENANT ISOLATION</text>
+
+      <!-- Team A isolation -->
+      <rect x="60" y="390" width="240" height="105" rx="6" fill="#172554" stroke="#1e3a5f" stroke-width="1"/>
+      <text x="180" y="408" text-anchor="middle" fill="#93c5fd" font-family="Inter,sans-serif" font-size="11" font-weight="600">Team A</text>
+      <text x="80" y="428" fill="#cbd5e1" font-family="Inter,sans-serif" font-size="10">Policy Config (strict citations)</text>
+      <text x="80" y="445" fill="#cbd5e1" font-family="Inter,sans-serif" font-size="10">Knowledge Corpus (partition-A)</text>
+      <text x="80" y="462" fill="#cbd5e1" font-family="Inter,sans-serif" font-size="10">Model Pin: v2.1</text>
+      <text x="80" y="479" fill="#cbd5e1" font-family="Inter,sans-serif" font-size="10">Audit Trail (isolated)</text>
+
+      <!-- Team B isolation -->
+      <rect x="330" y="390" width="240" height="105" rx="6" fill="#172554" stroke="#1e3a5f" stroke-width="1"/>
+      <text x="450" y="408" text-anchor="middle" fill="#93c5fd" font-family="Inter,sans-serif" font-size="11" font-weight="600">Team B</text>
+      <text x="350" y="428" fill="#cbd5e1" font-family="Inter,sans-serif" font-size="10">Policy Config (standard)</text>
+      <text x="350" y="445" fill="#cbd5e1" font-family="Inter,sans-serif" font-size="10">Knowledge Corpus (partition-B)</text>
+      <text x="350" y="462" fill="#cbd5e1" font-family="Inter,sans-serif" font-size="10">Model Pin: v3.0 (canary 10%)</text>
+      <text x="350" y="479" fill="#cbd5e1" font-family="Inter,sans-serif" font-size="10">Audit Trail (isolated)</text>
+
+      <!-- Team C isolation -->
+      <rect x="600" y="390" width="240" height="105" rx="6" fill="#172554" stroke="#1e3a5f" stroke-width="1"/>
+      <text x="720" y="408" text-anchor="middle" fill="#93c5fd" font-family="Inter,sans-serif" font-size="11" font-weight="600">Team C</text>
+      <text x="620" y="428" fill="#cbd5e1" font-family="Inter,sans-serif" font-size="10">Policy Config (relaxed)</text>
+      <text x="620" y="445" fill="#cbd5e1" font-family="Inter,sans-serif" font-size="10">Knowledge Corpus (partition-C)</text>
+      <text x="620" y="462" fill="#cbd5e1" font-family="Inter,sans-serif" font-size="10">Model Pin: v2.1</text>
+      <text x="620" y="479" fill="#cbd5e1" font-family="Inter,sans-serif" font-size="10">Audit Trail (isolated)</text>
+
+      <!-- ===== Shared Infra Layer (bottom) ===== -->
+      <rect x="40" y="525" width="820" height="140" rx="8" fill="#1a1a2a" stroke="#3f3f46" stroke-width="1"/>
+      <text x="60" y="547" fill="#a1a1aa" font-family="Inter,sans-serif" font-size="11" font-weight="500">SHARED INFRASTRUCTURE</text>
+
+      <rect x="60" y="560" width="240" height="40" rx="8" fill="#1e293b" stroke="#334155" stroke-width="1"/>
+      <text x="180" y="585" text-anchor="middle" fill="#e2e8f0" font-family="Inter,sans-serif" font-size="12" font-weight="500">Observability</text>
+      <text x="180" y="600" text-anchor="middle" fill="#71717a" font-family="Inter,sans-serif" font-size="10">(per-tenant dashboards)</text>
+
+      <rect x="330" y="560" width="240" height="40" rx="8" fill="#1e293b" stroke="#334155" stroke-width="1"/>
+      <text x="450" y="585" text-anchor="middle" fill="#e2e8f0" font-family="Inter,sans-serif" font-size="12" font-weight="500">Model Registry</text>
+      <text x="450" y="600" text-anchor="middle" fill="#71717a" font-family="Inter,sans-serif" font-size="10">(versioned, immutable)</text>
+
+      <rect x="600" y="560" width="240" height="40" rx="8" fill="#1e293b" stroke="#334155" stroke-width="1"/>
+      <text x="720" y="585" text-anchor="middle" fill="#e2e8f0" font-family="Inter,sans-serif" font-size="12" font-weight="500">Deployment Pipeline</text>
+      <text x="720" y="600" text-anchor="middle" fill="#71717a" font-family="Inter,sans-serif" font-size="10">(tenant-scoped releases)</text>
+
+      <!-- Connecting lines: isolation -> infra -->
+      <line x1="180" y1="495" x2="180" y2="560" stroke="#334155" stroke-width="1" stroke-dasharray="4,3"/>
+      <line x1="450" y1="495" x2="450" y2="560" stroke="#334155" stroke-width="1" stroke-dasharray="4,3"/>
+      <line x1="720" y1="495" x2="720" y2="560" stroke="#334155" stroke-width="1" stroke-dasharray="4,3"/>
+
+      <!-- Legend -->
+      <text x="60" y="645" fill="#71717a" font-family="Inter,sans-serif" font-size="10">Solid border = shared component</text>
+      <line x1="260" y1="640" x2="300" y2="640" stroke="#1e40af" stroke-width="1" stroke-dasharray="6,3"/>
+      <text x="310" y="645" fill="#71717a" font-family="Inter,sans-serif" font-size="10">Dashed border = isolation boundary</text>
+    </svg>
+
+    <p>
+      <span data-en>The diagram shows the four-layer architecture: tenants at the top, a shared platform layer that handles routing and orchestration, a per-tenant isolation layer where each team's data, policies, model pins, and audit trails are strictly separated, and shared infrastructure at the bottom. Let's walk through each isolation layer in detail.</span>
+      <span data-zh>图中展示了四层架构：顶层是租户，中间是处理路由和编排的共享平台层，然后是每个团队的数据、策略、模型版本和审计日志被严格分隔的租户隔离层，底层是共享基础设施。下面逐一展开每个隔离层。</span>
+    </p>
+
+    <!-- ================================================================== -->
+    <h2><span data-en>Isolation Layer 1: Data and Knowledge</span><span data-zh>隔离层一：数据与知识</span></h2>
+
+    <p>
+      <span data-en>Each tenant's knowledge corpus — the documents, embeddings, and retrieval indices that give agents their context — must be isolated. This sounds obvious, but the implementation details matter more than you'd expect.</span>
+      <span data-zh>每个租户的知识语料——让 Agent 获取上下文的文档、向量嵌入和检索索引——必须隔离。这听起来很显然，但实现细节比你预想的更重要。</span>
+    </p>
+
+    <p>
+      <span data-en>The naive approach is "different collections." Team A's documents go in collection_A, Team B's in collection_B. This works at the storage level, but it misses the real danger: <strong>retrieval-time leakage.</strong> If a developer writing an agent accidentally queries the wrong collection — or worse, queries without specifying a collection and hits a default — Team A's agent returns Team B's confidential documents. In a regulated financial services environment, this isn't a bug. It's a compliance incident that triggers regulatory reporting.</span>
+      <span data-zh>最朴素的方式是"不同的集合"。Team A 的文档放 collection_A，Team B 的放 collection_B。在存储层面这没问题，但它忽略了真正的风险：<strong>检索时泄漏。</strong>如果一个写 Agent 的开发者意外查询了错误的集合——或者更糟，查询时没指定集合而命中了默认集合——Team A 的 Agent 就会返回 Team B 的机密文档。在受监管的金融服务环境中，这不是 bug，这是会触发监管报告的合规事故。</span>
+    </p>
+
+    <p>
+      <span data-en>The solution is to enforce isolation at the platform level, not the agent level. Every retrieval query passes through a middleware layer that injects a tenant filter before the query reaches the vector store. The agent code never specifies which namespace to query — the platform resolves the tenant from the request context and applies the filter automatically. This means a misconfigured agent can't accidentally cross tenant boundaries. The boundary is structural, not behavioral.</span>
+      <span data-zh>解决方案是在平台层面而非 Agent 层面强制隔离。每个检索查询都经过一个中间件层，在查询到达向量存储之前注入租户过滤器。Agent 代码从不指定查询哪个命名空间——平台从请求上下文中解析租户并自动应用过滤器。这意味着配置错误的 Agent 不可能意外跨越租户边界。边界是结构性的，不是行为性的。</span>
+    </p>
+
+    <p>
+      <span data-en>Concretely, this looks like namespace-prefixed vector store partitions (e.g., <code>tenant_a/embeddings</code>, <code>tenant_b/embeddings</code>) with a query interceptor that reads the <code>X-Tenant-ID</code> header and scopes every vector similarity search to the corresponding partition. We add a validation step: if the tenant ID in the request header doesn't match any known namespace, the query is rejected — fail closed, not fail open. Audit logs capture every retrieval with the tenant scope, so compliance can verify after the fact that no cross-tenant retrieval occurred.</span>
+      <span data-zh>具体来说，这是命名空间前缀的向量存储分区（例如 <code>tenant_a/embeddings</code>、<code>tenant_b/embeddings</code>），加上一个查询拦截器读取 <code>X-Tenant-ID</code> 请求头并将每次向量相似度搜索限定在对应分区。我们增加了一个验证步骤：如果请求头中的租户 ID 不匹配任何已知命名空间，查询被拒绝——失败时关闭（fail closed），而不是失败时放行（fail open）。审计日志记录每次检索的租户范围，合规团队可以事后验证没有发生过跨租户检索。</span>
+    </p>
+
+    <p>
+      <span data-en>One nuance we learned the hard way: embedding model versions must also be tracked per tenant. When we upgraded the embedding model globally, the new embeddings were incompatible with the old index. Team A's documents, re-indexed with the new model, worked fine. Team B's documents, which hadn't been re-indexed yet, started returning garbage results because the query embeddings (from the new model) were compared against document embeddings (from the old model). Per-tenant embedding model versioning isn't optional — it's a data consistency requirement.</span>
+      <span data-zh>有一个教训是我们吃了苦头才学到的：向量嵌入模型版本也必须按租户跟踪。当我们全局升级嵌入模型时，新嵌入与旧索引不兼容。Team A 的文档用新模型重新索引了，一切正常。Team B 的文档还没来得及重新索引，开始返回垃圾结果——因为查询嵌入（来自新模型）在和文档嵌入（来自旧模型）比较。按租户跟踪嵌入模型版本不是可选的——这是数据一致性要求。</span>
+    </p>
+
+    <!-- ================================================================== -->
+    <h2><span data-en>Isolation Layer 2: Policy and Governance</span><span data-zh>隔离层二：策略与治理</span></h2>
+
+    <p>
+      <span data-en>Different tenants have different risk appetites. A fund compliance team dealing with investor-facing reports needs strict citation requirements — every claim the agent makes must trace back to a source document, and the agent must refuse to answer if the evidence is insufficient. An internal operations team using agents to summarize meeting notes has much lighter requirements — citations are nice to have, but a wrong summary isn't a regulatory violation.</span>
+      <span data-zh>不同租户有不同的风险偏好。处理投资者报告的基金合规团队需要严格的引用要求——Agent 的每个论断都必须追溯到源文档，证据不足时 Agent 必须拒绝回答。而用 Agent 做会议纪要摘要的内部运维团队要求宽松得多——引用当然好，但摘要出错不是监管违规。</span>
+    </p>
+
+    <p>
+      <span data-en>The architectural decision here is <strong>policy as data, not policy as code.</strong> The temptation is to write <code>if tenant == "fund_compliance": require_citations()</code> in the orchestration logic. This works for two tenants. By the time you have five, you have a tangled nest of conditionals that nobody can reason about, and adding tenant six requires a code change, a code review, a deployment, and a prayer.</span>
+      <span data-zh>这里的架构决策是<strong>策略即数据（policy as data），而不是策略即代码（policy as code）。</strong>很容易写成 <code>if tenant == "fund_compliance": require_citations()</code> 这样的编排逻辑。两个租户时这管用。到五个租户时，你面对的是一团没人能理清的条件嵌套，接入第六个租户需要改代码、走代码审查、做一次部署、再加一点祈祷。</span>
+    </p>
+
+    <p>
+      <span data-en>Instead, each tenant gets a policy configuration file — a structured document that defines their specific rules. At task dispatch time, the platform loads the appropriate policy config and passes it to the policy engine. The engine evaluates agent outputs against these rules without any tenant-specific branching in its code. Adding a new tenant means creating a new config file, not modifying the platform.</span>
+      <span data-zh>正确的做法是每个租户有一份策略配置文件——一个结构化文档定义他们的具体规则。在任务分发时，平台加载对应的策略配置并传递给策略引擎。引擎根据这些规则评估 Agent 输出，代码中没有任何租户特定的分支。接入新租户意味着创建一个新配置文件，而不是修改平台。</span>
+    </p>
+
+    <p>
+      <span data-en>A policy config typically includes:</span>
+      <span data-zh>一份策略配置通常包含：</span>
+    </p>
+
+    <ul>
+      <li>
+        <span data-en><strong>Risk threshold</strong> — The confidence score below which agent outputs are escalated to a human reviewer. Fund compliance: 0.85. Internal ops: 0.5.</span>
+        <span data-zh><strong>风险阈值</strong>——Agent 输出低于此置信分时升级到人工审核。基金合规：0.85。内部运维：0.5。</span>
+      </li>
+      <li>
+        <span data-en><strong>Citation requirements</strong> — Whether the agent must provide source citations, and the minimum citation relevance score. Some tenants require citations on every factual claim; others only require them when the output will be shared externally.</span>
+        <span data-zh><strong>引用要求</strong>——Agent 是否必须提供来源引用，以及最低引用相关性分。有些租户要求每个事实论断都有引用；其他的仅在输出将对外分享时要求引用。</span>
+      </li>
+      <li>
+        <span data-en><strong>Escalation rules</strong> — What triggers human-in-the-loop intervention. For high-risk tenants: any output touching financial figures. For low-risk tenants: only when the agent explicitly signals uncertainty.</span>
+        <span data-zh><strong>升级规则</strong>——什么条件触发人工介入（human-in-the-loop）。高风险租户：任何涉及财务数据的输出。低风险租户：仅当 Agent 明确表示不确定时。</span>
+      </li>
+      <li>
+        <span data-en><strong>Allowed actions</strong> — Which tools and external APIs the agent can invoke. Some tenants allow web search; others restrict agents to internal knowledge only. Some allow the agent to draft emails; others restrict it to analysis and summarization.</span>
+        <span data-zh><strong>允许的操作</strong>——Agent 可以调用哪些工具和外部 API。有些租户允许网络搜索；其他的限制 Agent 只使用内部知识。有些允许 Agent 起草邮件；其他的限制它只做分析和摘要。</span>
+      </li>
+      <li>
+        <span data-en><strong>Retention rules</strong> — How long agent outputs and intermediate reasoning traces are retained. Compliance-heavy tenants may require 7-year retention. Internal ops may allow 90-day expiry.</span>
+        <span data-zh><strong>保留规则</strong>——Agent 输出和中间推理链保留多长时间。合规要求高的租户可能需要保留 7 年。内部运维可能允许 90 天后过期。</span>
+      </li>
+    </ul>
+
+    <p>
+      <span data-en>The policy engine is tenant-agnostic — it receives a config and evaluates against it. This clean separation means you can test policy logic with synthetic configs, onboard new tenants without code changes, and let tenant administrators (within guardrails) adjust their own thresholds through a config management interface. The platform only enforces that the config conforms to a schema and that certain fields cannot be set below platform-wide minimums (you can't set your risk threshold to 0.0 and bypass all safety checks).</span>
+      <span data-zh>策略引擎是租户无关的——它接收一份配置并据此评估。这种干净的分离意味着你可以用合成配置测试策略逻辑，不改代码就能接入新租户，并且在护栏之内让租户管理员通过配置管理界面调整自己的阈值。平台只确保配置符合 schema，并且某些字段不能低于平台级最低值（你不能把风险阈值设成 0.0 来绕过所有安全检查）。</span>
+    </p>
+
+    <!-- ================================================================== -->
+    <h2><span data-en>Isolation Layer 3: Model Lifecycle</span><span data-zh>隔离层三：模型生命周期</span></h2>
+
+    <p>
+      <span data-en>This is where multi-tenancy gets genuinely interesting — and where most platform teams underestimate the complexity. In a single-tenant world, model upgrades are straightforward: test the new version, swap it in, done. In a multi-tenant world, different tenants have different validation cycles, different risk tolerances for model changes, and different timelines for testing and approval.</span>
+      <span data-zh>这是多租户变得真正有意思的地方——也是大多数平台团队低估复杂度的地方。单租户世界里，模型升级很直接：测试新版本，切换进去，完事。多租户世界里，不同租户有不同的验证周期、对模型变更不同的风险容忍度、以及不同的测试和审批时间表。</span>
+    </p>
+
+    <p>
+      <span data-en>Consider: Team A (fund compliance) has spent three weeks validating model v2.1 against their test suite — a suite that includes edge cases around financial regulations, specific formatting requirements for investor reports, and regression tests for previous incidents. They've signed off on v2.1. They absolutely do not want to be moved to v3.0 just because Team B is ready for it. Meanwhile, Team B (credit risk) wants to pilot v3.0 because it handles tabular data better, which matters for their credit scoring workflows. And Team C (internal ops) is happy to run whatever the latest stable version is — they don't have the bandwidth or the need to validate specific versions.</span>
+      <span data-zh>设想一下：Team A（基金合规）花了三周时间用他们的测试套件验证模型 v2.1——这个套件包含金融法规的边界用例、投资者报告的特定格式要求，以及之前事故的回归测试。他们签字认可了 v2.1。他们绝对不想仅仅因为 Team B 准备好了就被迁移到 v3.0。同时，Team B（信用风险）想试用 v3.0，因为它处理表格数据更好，这对他们的信用评分工作流很重要。Team C（内部运维）则乐意用最新的稳定版——他们没有精力也没有必要验证特定版本。</span>
+    </p>
+
+    <p>
+      <span data-en>The platform supports this through <strong>per-tenant model pinning</strong>. Each tenant's configuration specifies which model version they're using. The tenant router reads this pin and routes requests to the corresponding model instance. Upgrading a tenant's model version is an explicit operation — it requires the tenant to update their pin, not the platform to push a global change.</span>
+      <span data-zh>平台通过<strong>按租户模型锁定（per-tenant model pinning）</strong>来支持这一点。每个租户的配置指定他们使用的模型版本。租户路由器读取此锁定并将请求路由到对应的模型实例。升级租户的模型版本是一个显式操作——需要租户更新他们的锁定，而不是平台推送全局变更。</span>
+    </p>
+
+    <p>
+      <span data-en>But model pinning alone isn't enough. You also need <strong>tenant-scoped canary releases</strong>: the ability to roll out a new model version to a percentage of one tenant's traffic without affecting other tenants at all. Team B wants to try v3.0? Start with 10% of Team B's requests going to v3.0, 90% still going to v2.1. Monitor Team B's SLOs (Service Level Objectives — the measurable targets for latency, accuracy, and error rates). If v3.0 performs well, gradually increase the split. If it degrades, roll back — and the rollback only affects Team B. Team A never notices.</span>
+      <span data-zh>但仅靠模型锁定是不够的。你还需要<strong>租户范围的金丝雀发布（tenant-scoped canary releases）</strong>：能够将新模型版本推送到某个租户的一定比例流量，而完全不影响其他租户。Team B 想试 v3.0？让 Team B 10% 的请求走 v3.0，90% 仍走 v2.1。监控 Team B 的 SLO（服务等级目标——延迟、准确性和错误率的可度量指标）。如果 v3.0 表现好，逐步增加比例。如果有退化，回滚——回滚只影响 Team B。Team A 毫无感知。</span>
+    </p>
+
+    <!-- Diagram 2: Per-Tenant Canary Release Flow -->
+    <svg width="100%" viewBox="0 0 900 440" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Per-Tenant Canary Release Flow Diagram">
+      <defs>
+        <marker id="arrow2" viewBox="0 0 10 7" refX="10" refY="3.5" markerWidth="10" markerHeight="7" orient="auto-start-reverse">
+          <path d="M 0 0 L 10 3.5 L 0 7 z" fill="#3b82f6"/>
+        </marker>
+        <marker id="arrow2red" viewBox="0 0 10 7" refX="10" refY="3.5" markerWidth="10" markerHeight="7" orient="auto-start-reverse">
+          <path d="M 0 0 L 10 3.5 L 0 7 z" fill="#ef4444"/>
+        </marker>
+        <marker id="arrow2green" viewBox="0 0 10 7" refX="10" refY="3.5" markerWidth="10" markerHeight="7" orient="auto-start-reverse">
+          <path d="M 0 0 L 10 3.5 L 0 7 z" fill="#22c55e"/>
+        </marker>
+      </defs>
+
+      <!-- Background -->
+      <rect width="900" height="440" rx="12" fill="#1e1e2e"/>
+
+      <!-- Title -->
+      <text x="450" y="32" text-anchor="middle" fill="#e2e8f0" font-family="Inter,sans-serif" font-size="15" font-weight="600">Per-Tenant Canary Release Flow</text>
+
+      <!-- Model Registry -->
+      <rect x="40" y="55" width="180" height="100" rx="8" fill="#1e293b" stroke="#334155" stroke-width="1.5"/>
+      <text x="130" y="78" text-anchor="middle" fill="#e2e8f0" font-family="Inter,sans-serif" font-size="13" font-weight="600">Model Registry</text>
+      <rect x="60" y="90" width="140" height="24" rx="4" fill="#172554" stroke="#1e3a5f" stroke-width="1"/>
+      <text x="130" y="107" text-anchor="middle" fill="#93c5fd" font-family="Inter,sans-serif" font-size="11">v2.1 (stable)</text>
+      <rect x="60" y="120" width="140" height="24" rx="4" fill="#1a2e05" stroke="#365314" stroke-width="1"/>
+      <text x="130" y="137" text-anchor="middle" fill="#86efac" font-family="Inter,sans-serif" font-size="11">v3.0 (canary)</text>
+
+      <!-- Arrow: registry -> router -->
+      <line x1="220" y1="105" x2="310" y2="105" stroke="#3b82f6" stroke-width="1.5" marker-end="url(#arrow2)"/>
+
+      <!-- Tenant Router -->
+      <rect x="310" y="70" width="180" height="70" rx="8" fill="#1e40af" stroke="#3b82f6" stroke-width="1.5"/>
+      <text x="400" y="100" text-anchor="middle" fill="#ffffff" font-family="Inter,sans-serif" font-size="13" font-weight="600">Tenant Router</text>
+      <text x="400" y="118" text-anchor="middle" fill="#bfdbfe" font-family="Inter,sans-serif" font-size="10">(traffic split per tenant config)</text>
+
+      <!-- Team A branch -->
+      <line x1="490" y1="85" x2="600" y2="62" stroke="#3b82f6" stroke-width="1.5" marker-end="url(#arrow2)"/>
+      <rect x="600" y="45" width="260" height="76" rx="8" fill="#0f172a" stroke="#1e3a5f" stroke-width="1.5"/>
+      <text x="730" y="68" text-anchor="middle" fill="#93c5fd" font-family="Inter,sans-serif" font-size="12" font-weight="600">Team A</text>
+      <rect x="620" y="78" width="220" height="20" rx="4" fill="#172554"/>
+      <rect x="620" y="78" width="220" height="20" rx="4" fill="#1e40af"/>
+      <text x="730" y="93" text-anchor="middle" fill="#e2e8f0" font-family="Inter,sans-serif" font-size="10" font-weight="500">100% v2.1</text>
+      <text x="620" y="113" fill="#64748b" font-family="Inter,sans-serif" font-size="9">No canary &mdash; pinned to validated version</text>
+
+      <!-- Team B branch -->
+      <line x1="490" y1="115" x2="600" y2="170" stroke="#3b82f6" stroke-width="1.5" marker-end="url(#arrow2)"/>
+      <rect x="600" y="145" width="260" height="76" rx="8" fill="#0f172a" stroke="#365314" stroke-width="1.5"/>
+      <text x="730" y="168" text-anchor="middle" fill="#86efac" font-family="Inter,sans-serif" font-size="12" font-weight="600">Team B (canary active)</text>
+      <!-- Stacked bar: 90% blue + 10% green -->
+      <rect x="620" y="178" width="220" height="20" rx="4" fill="#172554"/>
+      <rect x="620" y="178" width="198" height="20" rx="4" fill="#1e40af"/>
+      <rect x="818" y="178" width="22" height="20" rx="0" fill="#166534"/>
+      <!-- round the right end -->
+      <rect x="816" y="178" width="24" height="20" rx="4" fill="#166534"/>
+      <text x="719" y="193" text-anchor="middle" fill="#e2e8f0" font-family="Inter,sans-serif" font-size="10" font-weight="500">90% v2.1</text>
+      <text x="828" y="193" text-anchor="middle" fill="#86efac" font-family="Inter,sans-serif" font-size="8" font-weight="600">10%</text>
+      <text x="620" y="213" fill="#64748b" font-family="Inter,sans-serif" font-size="9">v3.0 canary &mdash; monitoring SLOs before ramp-up</text>
+
+      <!-- ===== Monitoring Section ===== -->
+      <rect x="40" y="255" width="820" height="80" rx="8" fill="#1a1a2a" stroke="#3f3f46" stroke-width="1"/>
+      <text x="60" y="277" fill="#a1a1aa" font-family="Inter,sans-serif" font-size="11" font-weight="500">PER-TENANT SLO MONITORING</text>
+
+      <!-- Team A SLO -->
+      <rect x="60" y="290" width="240" height="34" rx="6" fill="#172554" stroke="#1e3a5f" stroke-width="1"/>
+      <text x="80" y="312" fill="#93c5fd" font-family="Inter,sans-serif" font-size="11" font-weight="500">Team A:</text>
+      <text x="140" y="312" fill="#22c55e" font-family="Inter,sans-serif" font-size="11">Latency P99: 1.2s</text>
+      <text x="260" y="312" fill="#22c55e" font-family="Inter,sans-serif" font-size="11">Err: 0.1%</text>
+
+      <!-- Team B SLO -->
+      <rect x="330" y="290" width="350" height="34" rx="6" fill="#172554" stroke="#365314" stroke-width="1"/>
+      <text x="350" y="312" fill="#86efac" font-family="Inter,sans-serif" font-size="11" font-weight="500">Team B:</text>
+      <text x="410" y="312" fill="#22c55e" font-family="Inter,sans-serif" font-size="11">v2.1 P99: 1.3s, Err: 0.2%</text>
+      <text x="578" y="312" fill="#fbbf24" font-family="Inter,sans-serif" font-size="11">v3.0 P99: 1.8s, Err: 0.4%</text>
+
+      <!-- Arrows from monitoring to rollback -->
+      <line x1="180" y1="324" x2="180" y2="355" stroke="#334155" stroke-width="1" stroke-dasharray="4,3"/>
+      <line x1="505" y1="324" x2="505" y2="355" stroke="#334155" stroke-width="1" stroke-dasharray="4,3"/>
+
+      <!-- ===== Rollback Decision ===== -->
+      <rect x="40" y="355" width="820" height="70" rx="8" fill="#1a1a2a" stroke="#3f3f46" stroke-width="1"/>
+      <text x="60" y="377" fill="#a1a1aa" font-family="Inter,sans-serif" font-size="11" font-weight="500">AUTOMATED ROLLBACK TRIGGER</text>
+
+      <!-- Green: Team A OK -->
+      <rect x="60" y="390" width="240" height="26" rx="6" fill="#052e16" stroke="#166534" stroke-width="1"/>
+      <text x="180" y="408" text-anchor="middle" fill="#22c55e" font-family="Inter,sans-serif" font-size="11" font-weight="500">Team A: within error budget &mdash; no action</text>
+
+      <!-- Yellow/Red: Team B decision -->
+      <rect x="330" y="390" width="350" height="26" rx="6" fill="#422006" stroke="#92400e" stroke-width="1"/>
+      <text x="505" y="408" text-anchor="middle" fill="#fbbf24" font-family="Inter,sans-serif" font-size="11" font-weight="500">Team B v3.0: if error budget exceeded &rarr; auto-rollback to v2.1</text>
+
+      <!-- Rollback arrow -->
+      <line x1="680" y1="403" x2="830" y2="403" stroke="#ef4444" stroke-width="1.5" marker-end="url(#arrow2red)" stroke-dasharray="6,3"/>
+      <text x="840" y="407" fill="#ef4444" font-family="Inter,sans-serif" font-size="10" font-weight="600">ROLLBACK</text>
+    </svg>
+
+    <p>
+      <span data-en>The canary release flow is per-tenant, not per-cluster. This is a subtle but critical distinction. Traditional canary releases route a percentage of <em>all</em> traffic to the new version. In a multi-tenant agent platform, the canary is scoped to one tenant's traffic. This means you can iterate on model versions with one team while keeping every other team on their validated, stable version. The blast radius of a bad model update is exactly one tenant's canary percentage — not the entire platform.</span>
+      <span data-zh>金丝雀发布流程是按租户的，不是按集群的。这是一个细微但关键的区别。传统金丝雀发布将<em>所有</em>流量的一定比例路由到新版本。在多租户 Agent 平台中，金丝雀的范围限定在一个租户的流量。这意味着你可以与一个团队迭代模型版本，同时让其他所有团队保持在他们已验证的稳定版本上。一次糟糕的模型更新的爆炸半径恰好是一个租户的金丝雀比例——而不是整个平台。</span>
+    </p>
+
+    <!-- ================================================================== -->
+    <h2><span data-en>Isolation Layer 4: Observability</span><span data-zh>隔离层四：可观测性</span></h2>
+
+    <p>
+      <span data-en>Observability in a multi-tenant agent platform has one non-negotiable requirement: <code>tenant_id</code> must be a first-class label on every metric, every trace, and every log line. This isn't a nice-to-have for filtering dashboards — it's a structural requirement that affects alerting, debugging, capacity planning, and compliance.</span>
+      <span data-zh>多租户 Agent 平台的可观测性有一个不可商量的要求：<code>tenant_id</code> 必须是每个指标、每条链路追踪、每行日志的一等标签。这不是用来筛选仪表盘的锦上添花——它是影响告警、调试、容量规划和合规的结构性要求。</span>
+    </p>
+
+    <p>
+      <span data-en>Without per-tenant observability, you get this scenario: a latency spike appears on the platform dashboard. P99 latency jumps from 1.2 seconds to 4.8 seconds. Your oncall pages. But which tenant is affected? Is it Team A's fund compliance agents suddenly processing larger documents? Is it Team B's credit risk model hitting a slow path? Is it Team C running a batch job? Without <code>tenant_id</code> on every metric, your oncall's first task isn't fixing the problem — it's figuring out who has the problem. In a regulated environment where SLA (Service Level Agreement — the contractual uptime and performance commitments) breaches have real consequences, that diagnostic delay is unacceptable.</span>
+      <span data-zh>没有按租户的可观测性，你会遇到这样的场景：平台仪表盘出现延迟尖峰。P99 延迟从 1.2 秒跳到 4.8 秒。值班被叫醒。但哪个租户受影响了？是 Team A 的基金合规 Agent 突然在处理更大的文档？是 Team B 的信用风险模型走了慢路径？还是 Team C 在跑批处理？没有在每个指标上标注 <code>tenant_id</code>，你的值班人员第一个任务不是修问题——而是搞清楚谁有问题。在一个 SLA（服务等级协议——合同约定的可用性和性能承诺）违约有实际后果的受监管环境中，这种诊断延迟是不可接受的。</span>
+    </p>
+
+    <p>
+      <span data-en>The implementation involves four things:</span>
+      <span data-zh>实现涉及四件事：</span>
+    </p>
+
+    <ul>
+      <li>
+        <span data-en><strong>Per-tenant SLOs.</strong> Each tenant has their own latency targets, error rate budgets, and availability commitments. Team A might need P99 latency under 2 seconds; Team C might be fine with 5 seconds. A single platform-wide SLO is meaningless when tenants have different requirements.</span>
+        <span data-zh><strong>按租户的 SLO。</strong>每个租户有自己的延迟目标、错误率预算和可用性承诺。Team A 可能需要 P99 延迟在 2 秒以内；Team C 可能 5 秒就够了。当租户有不同要求时，单一的全平台 SLO 是没有意义的。</span>
+      </li>
+      <li>
+        <span data-en><strong>Per-tenant dashboards.</strong> Each tenant's team and each tenant's oncall should see their own metrics, not a noisy aggregate. The platform team sees the aggregate; tenant teams see their slice.</span>
+        <span data-zh><strong>按租户的仪表盘。</strong>每个租户的团队和值班应该看到自己的指标，而不是嘈杂的聚合数据。平台团队看聚合数据；租户团队看自己的切片。</span>
+      </li>
+      <li>
+        <span data-en><strong>Per-tenant alerting.</strong> A latency spike in Team B's traffic shouldn't page Team A's oncall. Alerts are routed based on <code>tenant_id</code>, not based on which platform component is affected. This requires tenant-aware alerting rules, which adds configuration surface — but the alternative is alert fatigue and crossed wires.</span>
+        <span data-zh><strong>按租户的告警。</strong>Team B 流量的延迟尖峰不应该叫醒 Team A 的值班。告警基于 <code>tenant_id</code> 路由，而不是基于哪个平台组件受影响。这需要租户感知的告警规则，增加了配置面——但替代方案是告警疲劳和信息混乱。</span>
+      </li>
+      <li>
+        <span data-en><strong>Per-tenant error budgets.</strong> Error budget (the acceptable amount of unreliability over a time window) is consumed independently per tenant. If Team B burns through their error budget due to a canary release, it doesn't affect Team A's error budget calculation. This makes per-tenant rollback decisions clean and unambiguous.</span>
+        <span data-zh><strong>按租户的错误预算。</strong>错误预算（一个时间窗口内可接受的不可靠性数量）按租户独立消耗。如果 Team B 因为金丝雀发布用尽了错误预算，不会影响 Team A 的错误预算计算。这使按租户的回滚决策清晰且无歧义。</span>
+      </li>
+    </ul>
+
+    <p>
+      <span data-en>The practical challenge is propagating <code>tenant_id</code> through the entire request lifecycle. It starts at the API Gateway, must survive through the tenant router, the orchestration engine, the model inference call, the knowledge retrieval, the policy evaluation, and back. If any component in the chain drops the tenant context, you get an "unknown tenant" hole in your observability — which is exactly where bugs hide. We enforce this with a middleware that rejects any internal service call that doesn't carry a <code>tenant_id</code> in its context. It's aggressive, and it caused some friction during development, but it's caught real bugs in production.</span>
+      <span data-zh>实际挑战是在整个请求生命周期中传播 <code>tenant_id</code>。它从 API 网关开始，必须存活过租户路由器、编排引擎、模型推理调用、知识检索、策略评估，再返回。如果链路中任何组件丢失了租户上下文，你的可观测性就会出现一个"未知租户"的洞——这正是 bug 藏身的地方。我们通过一个中间件来强制执行：拒绝任何上下文中不携带 <code>tenant_id</code> 的内部服务调用。这很激进，在开发期间造成了一些摩擦，但它在生产环境中捕获了真实的 bug。</span>
+    </p>
+
+    <!-- ================================================================== -->
+    <h2><span data-en>The Operational Challenges</span><span data-zh>运维挑战</span></h2>
+
+    <p>
+      <span data-en>Architecture diagrams are clean. Operations are not. Here are the challenges that are specific to multi-tenant AI agent platforms — things you won't find in the generic "multi-tenant SaaS" playbook because they're unique to systems where the core workload is LLM inference and retrieval-augmented generation (RAG — a pattern where the agent retrieves relevant documents before generating a response).</span>
+      <span data-zh>架构图是干净的。运维不是。以下是多租户 AI Agent 平台特有的挑战——你在通用的"多租户 SaaS"指南中找不到，因为它们是核心工作负载为 LLM 推理和检索增强生成（RAG——Agent 在生成回答前先检索相关文档的模式）的系统独有的。</span>
+    </p>
+
+    <h3><span data-en>Noisy Neighbor in Model Inference</span><span data-zh>模型推理中的嘈杂邻居</span></h3>
+
+    <p>
+      <span data-en>LLM inference is GPU-bound. When one tenant submits a large batch job — say, Team B's credit risk team wants to reprocess 500 loan applications through the agent — it can starve other tenants' real-time requests. A single large batch can saturate the GPU pool and push Team A's real-time latency from 1.2 seconds to 12 seconds.</span>
+      <span data-zh>LLM 推理是 GPU 密集的。当一个租户提交大批量任务——比如 Team B 的信用风险团队想通过 Agent 重新处理 500 份贷款申请——它会饿死其他租户的实时请求。一个大批处理就能打满 GPU 池，把 Team A 的实时延迟从 1.2 秒推到 12 秒。</span>
+    </p>
+
+    <p>
+      <span data-en>The solution is per-tenant request queues with priority classes and rate limiting. Real-time requests (interactive agent conversations) get higher priority than batch requests (bulk reprocessing). Each tenant has a rate limit on batch throughput, so no single tenant can monopolize the inference capacity. We also separate the GPU pool for batch and real-time workloads — batch requests go to a dedicated pool with lower priority, ensuring that real-time latency stays predictable even during batch spikes.</span>
+      <span data-zh>解决方案是按租户的请求队列，带优先级分类和限流。实时请求（交互式 Agent 对话）优先级高于批处理请求（批量重处理）。每个租户有批处理吞吐量的速率限制，所以没有单个租户能独占推理容量。我们还将 GPU 池分开用于批处理和实时工作负载——批处理请求进入一个较低优先级的专用池，确保即使在批处理尖峰期间，实时延迟仍然可预测。</span>
+    </p>
+
+    <h3><span data-en>Knowledge Corpus Drift</span><span data-zh>知识语料漂移</span></h3>
+
+    <p>
+      <span data-en>Different tenants update their knowledge corpora at different frequencies. Team A updates their regulatory documents weekly — they have to, because regulations change. Team B uploaded their credit policy documents six months ago and hasn't touched them since. Team C updates their ops runbooks occasionally, whenever a new incident reveals a gap.</span>
+      <span data-zh>不同租户以不同频率更新他们的知识语料。Team A 每周更新监管文档——他们不得不这样做，因为法规在变。Team B 六个月前上传了信贷政策文档后就没碰过。Team C 偶尔更新运维手册，每当新的事故暴露了缺口。</span>
+    </p>
+
+    <p>
+      <span data-en>Stale embeddings produce stale answers. If Team B's credit scoring agent is answering questions based on six-month-old policy documents, and the actual policy has changed, the agent is confidently giving outdated information. In a regulated environment, "the agent said it was fine based on old rules" is not a defense.</span>
+      <span data-zh>过时的嵌入产生过时的回答。如果 Team B 的信用评分 Agent 基于六个月前的政策文档回答问题，而实际政策已经变了，Agent 会自信地给出过期信息。在受监管环境中，"Agent 根据旧规则说没问题"不是辩护理由。</span>
+    </p>
+
+    <p>
+      <span data-en>We address this with per-tenant freshness metrics. Each tenant's knowledge corpus has a "last updated" timestamp and a "staleness threshold" in their policy config. When the corpus age exceeds the threshold, the platform generates an alert to the tenant team: "Your knowledge corpus hasn't been updated in 90 days. Agent responses may be based on outdated information." For high-risk tenants, we go further — the agent itself includes a disclaimer in its output if the most relevant retrieved documents are older than a configured maximum age. This doesn't prevent the staleness, but it makes it visible to the end user.</span>
+      <span data-zh>我们通过按租户的新鲜度指标来应对。每个租户的知识语料有一个"最后更新"时间戳和策略配置中的"过期阈值"。当语料年龄超过阈值时，平台向租户团队生成告警："你的知识语料已经 90 天未更新。Agent 的回答可能基于过期信息。"对于高风险租户，我们更进一步——如果检索到的最相关文档超过配置的最大年龄，Agent 本身会在输出中加入免责声明。这不能防止过期，但让终端用户看到了这一点。</span>
+    </p>
+
+    <h3><span data-en>Cascading Model Rollbacks</span><span data-zh>级联模型回滚</span></h3>
+
+    <p>
+      <span data-en>Here's a scenario that keeps platform engineers up at night: a shared model version has a regression. Model v2.1, which three tenants depend on, suddenly starts producing lower-quality outputs for a specific class of queries. Do you roll back all three tenants? Only the ones who reported issues? What if the regression affects Team A's use case but not Team B's?</span>
+      <span data-zh>这是一个让平台工程师夜不能寐的场景：一个共享的模型版本出了回归。三个租户依赖的模型 v2.1 突然在某类查询上产出了低质量输出。你要回滚所有三个租户吗？只回滚报告了问题的租户？如果回归影响了 Team A 的用例但没影响 Team B 的呢？</span>
+    </p>
+
+    <p>
+      <span data-en>The answer is per-tenant blast radius assessment. Before rolling back, the platform evaluates each tenant's error budget and quality metrics independently. If Team A's error budget is burning fast but Team B and Team C are fine, the rollback is scoped to Team A. This requires that the model registry keeps previous versions available (you can't rollback if the old version has been garbage collected) and that the rollback path is tested regularly — not just documented, but actually exercised in non-production environments. We run rollback drills monthly, and they've caught issues every time: expired model artifacts, changed API contracts between model versions, missing inference runtime dependencies.</span>
+      <span data-zh>答案是按租户的爆炸半径评估。回滚之前，平台独立评估每个租户的错误预算和质量指标。如果 Team A 的错误预算在快速消耗但 Team B 和 Team C 没事，回滚就限定在 Team A。这要求模型注册表保留之前的版本（如果旧版本被垃圾回收了就无法回滚），且回滚路径定期测试——不只是文档化，而是在非生产环境中实际演练。我们每月做回滚演练，每次都发现了问题：过期的模型制品、模型版本间变更的 API 契约、缺失的推理运行时依赖。</span>
+    </p>
+
+    <!-- ================================================================== -->
+    <h2><span data-en>What We Got Wrong</span><span data-zh>我们犯的错</span></h2>
+
+    <p>
+      <span data-en>Every architecture article that only talks about what worked is lying by omission. Here's what we got wrong.</span>
+      <span data-zh>每篇只讲成功的架构文章都是选择性遗漏。以下是我们犯的错。</span>
+    </p>
+
+    <h3><span data-en>Started with Logical Isolation, Had to Migrate to Physical</span><span data-zh>从逻辑隔离起步，不得不迁移到物理隔离</span></h3>
+
+    <p>
+      <span data-en>We started with logical isolation for the knowledge store: same database, different schemas. Same vector store instance, different namespaces. This was faster to build, cheaper to operate, and worked fine for tenants with similar risk profiles. But when we onboarded a tenant with strict data residency requirements (their data couldn't share hardware with other tenants — not just different schemas, different physical storage), we had to retrofit physical isolation. Migrating a tenant's embeddings from a shared vector store to a dedicated instance, re-indexing everything, and validating that retrieval quality didn't degrade — all while the tenant was live — took three weeks and involved two incidents where retrieval returned empty results because the migration left dangling references in the routing table.</span>
+      <span data-zh>我们一开始对知识存储采用逻辑隔离：同一个数据库，不同的 schema。同一个向量存储实例，不同的命名空间。这样构建更快、运营成本更低，对风险特征相似的租户效果良好。但当我们接入了一个有严格数据驻留要求的租户（他们的数据不能与其他租户共享硬件——不只是不同 schema，而是不同的物理存储），我们不得不改造为物理隔离。把一个租户的嵌入从共享向量存储迁移到专用实例、重新索引所有内容、验证检索质量没有下降——所有这些在租户在线运行时进行——花了三周，并经历了两次因为迁移在路由表中留下悬挂引用而导致检索返回空结果的事故。</span>
+    </p>
+
+    <p>
+      <span data-en>The lesson: if you know you'll eventually need physical isolation for some tenants, design the abstraction layer to support both from day one. The storage backend should be pluggable per tenant — some tenants get a namespace in the shared store, others get a dedicated instance. The retrieval API looks the same to the agent either way. We didn't do this, and the retrofit was painful.</span>
+      <span data-zh>教训：如果你知道最终某些租户需要物理隔离，就从第一天开始把抽象层设计为同时支持两种模式。存储后端应该按租户可插拔——一些租户在共享存储中有命名空间，另一些有专用实例。对 Agent 来说检索 API 看起来一模一样。我们没这样做，改造很痛苦。</span>
+    </p>
+
+    <h3><span data-en>Underestimated the Policy Configuration Surface</span><span data-zh>低估了策略配置面</span></h3>
+
+    <p>
+      <span data-en>When we designed the policy config schema, we started with about 12 keys per tenant. Risk threshold, citation mode, escalation rules, allowed tools — straightforward. Six months later, we had 40+ keys. Some tenants needed per-agent-type policies (the research agent has different rules than the drafting agent). Some needed time-of-day policies (stricter rules during trading hours). Some needed conditional policies (if the output mentions a specific client, apply extra review). Each addition was individually reasonable, but the cumulative effect was a config schema that nobody could hold in their head.</span>
+      <span data-zh>设计策略配置 schema 时，我们一开始每个租户大约 12 个配置项。风险阈值、引用模式、升级规则、允许的工具——很直接。六个月后，变成了 40 多个。有些租户需要按 Agent 类型的策略（研究 Agent 和起草 Agent 规则不同）。有些需要按时段的策略（交易时间更严格）。有些需要条件策略（如果输出提到特定客户，加额外审核）。每个新增单独看都合理，但累积效果是一个没人能记住的配置 schema。</span>
+    </p>
+
+    <p>
+      <span data-en>We eventually refactored into a layered policy model: platform defaults → tenant overrides → agent-type overrides → context-specific overrides. Each layer only specifies what it changes from the layer above. This reduced the cognitive load significantly — a tenant config now typically has 8-12 explicit overrides, with everything else inheriting from defaults. But the refactor itself was a multi-week effort that touched every tenant's configuration and required careful validation that the layered resolution produced the same effective policy as the old flat config.</span>
+      <span data-zh>我们最终重构为分层策略模型：平台默认值 → 租户覆盖 → Agent 类型覆盖 → 上下文特定覆盖。每层只指定相对上一层的变化。这显著降低了认知负担——一个租户配置现在通常有 8-12 个显式覆盖，其余全部从默认值继承。但重构本身是一个多周的工程，涉及每个租户的配置，并需要仔细验证分层解析产出的有效策略与旧的扁平配置一致。</span>
+    </p>
+
+    <h3><span data-en>Built Self-Service Onboarding Too Early</span><span data-zh>过早构建了自助接入门户</span></h3>
+
+    <p>
+      <span data-en>After onboarding three tenants manually, we felt the pain and decided to build a self-service portal: new teams could fill out a form, get a tenant config generated, and start using the platform without platform team involvement. We spent six weeks building it. Then the fourth tenant arrived with requirements that broke three of the portal's assumptions (they needed physical isolation, custom model hosting, and a policy config structure that our form couldn't express). The fifth tenant needed a different kind of exception. By the eighth tenant, the self-service portal handled about 60% of the onboarding flow and the other 40% was manual anyway.</span>
+      <span data-zh>手动接入三个租户后，我们感到了痛苦并决定构建自助门户：新团队可以填表单，生成租户配置，不需要平台团队介入就能开始使用平台。我们花了六周构建它。然后第四个租户到来，他们的需求打破了门户的三个假设（他们需要物理隔离、自定义模型托管，以及我们表单无法表达的策略配置结构）。第五个租户需要另一种例外。到第八个租户时，自助门户处理了大约 60% 的接入流程，剩下 40% 反正还是手动的。</span>
+    </p>
+
+    <p>
+      <span data-en>The lesson: don't automate onboarding until the isolation model is stable. "Stable" means you've onboarded enough tenants (we'd say at least 5-6) to understand the real variation in requirements. Premature automation encodes premature assumptions. A well-documented manual process that can handle exceptions is better than a rigid portal that can't.</span>
+      <span data-zh>教训：在隔离模型稳定之前不要自动化接入。"稳定"意味着你已经接入了足够多的租户（我们认为至少 5-6 个）来理解需求的真实差异。过早的自动化固化了过早的假设。一个能处理例外的文档完善的手动流程，比一个不能处理例外的死板门户要好。</span>
+    </p>
+
+    <!-- ================================================================== -->
+    <h2><span data-en>Checklist: Multi-Tenant Agent Platform</span><span data-zh>检查清单：多租户 Agent 平台</span></h2>
+
+    <p>
+      <span data-en>If you're starting the single-to-multi-tenant migration, here's what to prioritize:</span>
+      <span data-zh>如果你正在启动从单租户到多租户的迁移，以下是需要优先考虑的事项：</span>
+    </p>
+
+    <ol>
+      <li>
+        <span data-en><strong>Add <code>tenant_id</code> to every metric, trace, and log line first.</strong> Before any other isolation work, instrument your observability. You'll need per-tenant visibility to validate everything else you build. This is the cheapest change that unlocks the most value.</span>
+        <span data-zh><strong>先给每个指标、链路追踪和日志行加上 <code>tenant_id</code>。</strong>在做其他隔离工作之前，先部署可观测性。你需要按租户的可见性来验证你构建的一切。这是成本最低但价值最高的变更。</span>
+      </li>
+      <li>
+        <span data-en><strong>Enforce data isolation at the platform layer, not the agent layer.</strong> Tenant filters on knowledge retrieval must be injected by the platform middleware, not relied upon in agent code. Fail closed on missing tenant context.</span>
+        <span data-zh><strong>在平台层而非 Agent 层强制数据隔离。</strong>知识检索的租户过滤器必须由平台中间件注入，不能依赖 Agent 代码。缺失租户上下文时失败关闭。</span>
+      </li>
+      <li>
+        <span data-en><strong>Design policy configs as layered data, not branching code.</strong> Start with the layered model (platform defaults → tenant overrides) from the beginning. You'll add more policy dimensions than you expect.</span>
+        <span data-zh><strong>将策略配置设计为分层数据，而非分支代码。</strong>从一开始就用分层模型（平台默认值 → 租户覆盖）。你会增加比预期更多的策略维度。</span>
+      </li>
+      <li>
+        <span data-en><strong>Support per-tenant model pinning from day one.</strong> Even if every tenant currently uses the same model version, build the routing to support different versions. The first time a tenant refuses a model upgrade, you'll be glad you did.</span>
+        <span data-zh><strong>从第一天就支持按租户模型锁定。</strong>即使当前所有租户用同一个模型版本，也要把路由建得支持不同版本。第一次有租户拒绝模型升级时，你会庆幸这样做了。</span>
+      </li>
+      <li>
+        <span data-en><strong>Implement per-tenant rate limiting and queue priority.</strong> Batch and real-time workloads must be separated. One tenant's batch job must not be able to degrade another tenant's real-time latency.</span>
+        <span data-zh><strong>实现按租户的限流和队列优先级。</strong>批处理和实时工作负载必须分开。一个租户的批量任务不能降低另一个租户的实时延迟。</span>
+      </li>
+      <li>
+        <span data-en><strong>Design the storage abstraction to support both logical and physical isolation.</strong> Some tenants will need dedicated infrastructure. If the retrieval API hides the storage topology, you can upgrade individual tenants from logical to physical isolation without changing agent code.</span>
+        <span data-zh><strong>设计存储抽象以同时支持逻辑和物理隔离。</strong>有些租户会需要专用基础设施。如果检索 API 隐藏了存储拓扑，你可以在不改 Agent 代码的情况下将个别租户从逻辑隔离升级到物理隔离。</span>
+      </li>
+      <li>
+        <span data-en><strong>Run rollback drills monthly.</strong> Model rollbacks are your highest-stakes operational procedure. Test them regularly in non-production. Document every failure and fix the underlying issue.</span>
+        <span data-zh><strong>每月做回滚演练。</strong>模型回滚是你风险最高的运维操作。在非生产环境定期测试。记录每次失败并修复根因。</span>
+      </li>
+      <li>
+        <span data-en><strong>Don't build self-service onboarding until you've onboarded at least 5 tenants manually.</strong> You need to understand the real variation in tenant requirements before you can automate it. Premature automation will encode premature assumptions.</span>
+        <span data-zh><strong>在手动接入至少 5 个租户之前不要建自助接入。</strong>你需要先理解租户需求的真实差异，才能自动化。过早的自动化会固化过早的假设。</span>
+      </li>
+    </ol>
+
+    <!-- ================================================================== -->
+    <h2><span data-en>What's Still Hard</span><span data-zh>仍然困难的部分</span></h2>
+
+    <p>
+      <span data-en>I'll close with honesty about what we haven't fully solved.</span>
+      <span data-zh>最后坦诚说说我们还没完全解决的问题。</span>
+    </p>
+
+    <p>
+      <span data-en><strong>Cost attribution is still approximate.</strong> GPU inference costs are hard to attribute precisely to individual tenants. A shared model instance serves interleaved requests from multiple tenants, and the cost per request depends on input length, output length, and queuing time — none of which map cleanly to a fixed per-tenant cost. We allocate costs based on token counts and request frequency, but tenants (reasonably) push back when their bill goes up because another tenant's prompts got longer and shifted the queuing dynamics. We're moving toward dedicated inference capacity for the highest-volume tenants, but that trades cost efficiency for cost transparency.</span>
+      <span data-zh><strong>成本归因仍然是近似的。</strong>GPU 推理成本很难精确归属到每个租户。共享的模型实例服务来自多个租户的交错请求，每个请求的成本取决于输入长度、输出长度和排队时间——这些都无法清晰地映射到固定的按租户成本。我们基于 token 数量和请求频率分摊成本，但租户（合理地）在账单上涨时提出异议，因为另一个租户的提示变长了影响了排队动态。我们正在为最大流量的租户转向专用推理容量，但这是用成本效率换成本透明度。</span>
+    </p>
+
+    <p>
+      <span data-en><strong>Cross-tenant learning is a unsolved tension.</strong> Some tenants would benefit from insights learned by agents serving other tenants — common patterns, useful retrieval strategies, effective prompt structures. But sharing any information across tenant boundaries raises the same isolation concerns we've been solving. We've experimented with anonymized, aggregated pattern sharing (e.g., "agents across the platform perform better when they structure financial summaries as [format]"), but the anonymization has to be provably safe, and in a regulated environment, "provably" is a high bar. For now, each tenant operates in a silo, and cross-tenant improvements happen only at the platform code level, not at the data or knowledge level.</span>
+      <span data-zh><strong>跨租户学习是一个未解决的矛盾。</strong>一些租户可以从服务其他租户的 Agent 学到的洞察中获益——常见模式、有效的检索策略、好用的提示结构。但跨租户边界共享任何信息都会引发我们一直在解决的隔离问题。我们尝试了匿名化、聚合的模式共享（例如，"全平台的 Agent 在用 [格式] 结构化财务摘要时表现更好"），但匿名化必须是可证明安全的，在受监管环境中，"可证明"是一个很高的标准。目前每个租户在孤岛中运作，跨租户改进只发生在平台代码层面，不在数据或知识层面。</span>
+    </p>
+
+    <p>
+      <span data-en><strong>Tenant onboarding time is still measured in weeks, not hours.</strong> Despite our checklist and layered policy model, onboarding a new tenant still takes 2-3 weeks. The time isn't in the technical setup — that's down to a day or two. The time is in understanding the tenant's requirements, translating them into policy config, validating the isolation boundaries, and getting sign-off from the tenant's compliance team. We've accepted that this is inherently a people process, not a platform process. The platform can make the technical steps fast; it can't make the organizational alignment fast.</span>
+      <span data-zh><strong>租户接入时间仍然以周而非小时计。</strong>尽管有了检查清单和分层策略模型，接入一个新租户仍需 2-3 周。时间不在技术搭建上——那已经缩短到一两天。时间在于理解租户需求、将其转化为策略配置、验证隔离边界、以及获得租户合规团队的签字。我们已经接受了这本质上是一个人的流程，而不是平台流程。平台可以让技术步骤变快；它无法让组织对齐变快。</span>
+    </p>
+
+    <p>
+      <span data-en>Multi-tenancy in an AI agent platform is not a feature you add — it's an architectural property you design for. The earlier you recognize that your single-tenant success is built on implicit assumptions, the less painful the migration will be. The isolation layers are technical; the hard parts are operational and organizational. Start with observability, be honest about what you don't know yet, and don't confuse "works for one team" with "works."</span>
+      <span data-zh>AI Agent 平台的多租户不是一个你添加的功能——它是一个你设计进去的架构属性。你越早认识到单租户的成功建立在隐式假设之上，迁移就越不痛苦。隔离层是技术性的；真正困难的部分是运维和组织层面的。从可观测性开始，对尚不知道的事情坦诚，不要把"对一个团队管用"等同于"管用"。</span>
+    </p>
+
+    <div class="article-page-footer">
+      <p><span data-en>Written by Ming Zhou · 2025</span><span data-zh>作者：Ming Zhou · 2025</span></p>
+      <a href="../#writing" class="article-page-back">&larr; <span data-en>Back to all writing</span><span data-zh>返回文章列表</span></a>
+    </div>
+  </main>
+  <script src="../js/main.js"></script>
+</body>
+</html>
