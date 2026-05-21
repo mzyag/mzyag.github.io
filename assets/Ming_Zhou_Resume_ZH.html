@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>周明 — 简历</title>
+<style>
+  @page { margin: 48px 56px; size: A4; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: "PingFang SC", "Noto Sans SC", "Microsoft YaHei", sans-serif;
+    font-size: 12pt;
+    color: #1a1a1a;
+    line-height: 1.65;
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 48px 56px;
+  }
+  h1 { font-size: 24pt; font-weight: 700; margin-bottom: 4px; }
+  .subtitle { color: #444; font-size: 12pt; margin-bottom: 2px; }
+  .contact { color: #444; font-size: 11pt; margin-bottom: 20px; }
+  h2 {
+    font-size: 11pt; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.08em; color: #2563eb; margin-top: 22px; margin-bottom: 10px;
+    border-bottom: none;
+  }
+  h3 { font-size: 13pt; font-weight: 700; margin-bottom: 3px; }
+  .tags { font-size: 10.5pt; font-style: italic; color: #666; margin-bottom: 6px; }
+  .lead { margin-bottom: 6px; }
+  p { margin-bottom: 6px; }
+  ul { padding-left: 18px; margin-bottom: 8px; }
+  li { margin-bottom: 4px; }
+  .stack { font-size: 10.5pt; margin-bottom: 16px; }
+  .stack strong { font-weight: 700; }
+  .job-header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 2px; }
+  .job-title { font-size: 13pt; font-weight: 700; }
+  .job-date { font-size: 11pt; color: #666; white-space: nowrap; }
+  .edu-row { display: flex; justify-content: space-between; align-items: baseline; }
+  .edu-school { font-weight: 700; }
+  .edu-date { font-size: 11pt; color: #666; }
+  .skill-label { font-weight: 700; }
+  @media print {
+    body { padding: 0; max-width: none; }
+  }
+</style>
+</head>
+<body>
+
+<h1>周明</h1>
+<div class="subtitle">技术负责人 · 后端与分布式平台 · AI Agent 系统</div>
+<div class="contact">上海 | zcm_5237@163.com | +86 159-2173-1253 | 中英双语</div>
+
+<h2>个人简介</h2>
+<p>后端和平台工程师，12+ 年金融服务与大规模互联网经验。过去六年在花旗担任技术负责人，基于 LangGraph、LlamaIndex 和 Milvus 构建并运营生产级 AI Agent 平台。平台服务于多区域受监管环境下的多条业务线工作流，在可靠性、可追溯性和数据隔离方面有硬性要求。</p>
+<p>亲手参与架构、编码和运维。在分布式系统、API 设计、SLO/SLI、可观测性以及通过金丝雀发布和回滚实现安全交付方面有扎实功底。与产品紧密合作决定做什么，指导高级工程师，在全球分布式团队中高效协作。中英双语流利。</p>
+
+<h2>核心项目（花旗，2019 – 2025）</h2>
+
+<h3>AI Agent 平台 — 可治理的 RAG 与 Agentic 工作流</h3>
+<div class="tags">LangGraph 编排 · 可审计 RAG · 工具调用 · 结构化输出 · 人在环路 · SRE 级可靠性</div>
+<p class="lead">主导端到端 AI Agent 平台的设计、交付和生产运营。将依赖专家的手动工作流转变为自助式、可重放、风险可控的人机协作系统，适用于受监管的多区域场景。</p>
+<ul>
+  <li>从 0 到 1 构建平台。将编排、检索、策略门控和审计日志标准化为共享基础设施。扩展至 3–8 条业务线和 6–12 个领域；接入 20K–50K 受治理制品和 100–300+ 模板。</li>
+  <li>将引用和结构化输出定为平台契约（"无证据，无结论"）。引用覆盖率保持 95–99%；因不可验证引用导致的下游驳回从约 12–18% 降至约 6–10%。</li>
+  <li>针对 LLM 不确定性设计确定性安全控制：可回答性 + 风险路由（回答 / 拒绝 / 仅引用 / 升级）。升级率保持 5–15%；无依据或不匹配回答从约 2–4% 降至约 1–2%。</li>
+  <li>将版本、管辖区和权限作为检索和引用的一等约束。错版本或未授权引用从 15–25 次/月降至 3–8 次/月。</li>
+  <li>按 SRE 标准生产化：SLO、分布式追踪、审计日志、金丝雀发布 + 回滚、运维手册。P1/P2 事故 6–10 → 3–6 次/月；MTTR 60–90 分钟 → 25–45 分钟；宕机影响降低约 40%。</li>
+  <li>建立受治理的模型生命周期：基于重放的评估、回归门控、升级/回滚。轻量级对齐（7B QLoRA，脱敏数据）将结构化格式错误从约 12–20% 降至约 4–8%。</li>
+</ul>
+<div class="stack"><strong>技术栈：</strong>Python, FastAPI, LangGraph, LlamaIndex + Milvus, Redis, OpenTelemetry, Jaeger, Langfuse, vLLM, LMDeploy, Prometheus / Grafana, Kubernetes, Helm, Istio, XTuner (QLoRA)。</div>
+
+<h3>工作流自动化 Agent — 跨内部系统的计划执行引擎</h3>
+<div class="tags">工具调用 · 最小权限检索 · 结构化证据包 · 端到端可追溯</div>
+<p class="lead">负责交付一个跨 10–20 个内部系统和 API 自动化多步骤工作流的 Agent。标准化了可控、可重放、审计就绪的管道，缩短了周期时间、减少了返工和跨系统数据暴露。</p>
+<ul>
+  <li>构建可复用的计划执行工作流引擎。多步骤任务变为受治理的、可重放的管道，运行在最小权限约束下。</li>
+  <li>设计带执行控制的连接层（白名单、步骤预算、重试/超时、熔断器、分级降级）。平均步骤数 18–25 → 10–16；p95 运行时间 25–40 分钟 → 12–25 分钟。</li>
+  <li>集成 10–20 个内部系统和 API（工单、审批、访问/变更日志、报告、告警、配置快照）。"错误周期/版本/未找到"返工从 40–70 次/月降至 20–45 次/月。</li>
+  <li>通过验证门控实现质量左移（时间窗口、所有者、审批链、权威来源、冲突检测）。下游驳回率 18–28% → 10–18%。</li>
+  <li>标准化输出包 schema，遵循最小披露原则（ID、字段、时间戳、哈希）。手动脱敏负载 10–16% → 5–10%。</li>
+  <li>扩展至 200–500 活跃用户和 3K–10K 次/月执行。通过全链路追溯，根因定位时间 2–4 小时 → 0.5–1.5 小时。</li>
+</ul>
+<div class="stack"><strong>技术栈：</strong>Python, FastAPI, LangGraph, 内部 HTTP/gRPC APIs, OpenTelemetry, Jaeger, Langfuse, Prometheus / Grafana, Kubernetes, Helm, Istio。</div>
+
+<h3>决策支持 Agent — Maker-Checker 与人在环路</h3>
+<div class="tags">基于角色的协作（Planner / Executor / Critic）· Maker-Checker · 决策仲裁 · 可审计重放</div>
+<p class="lead">构建面向高风险决策点的决策支持 Agent。将基于经验的分散审批转化为标准化的 maker-checker 工作流，明确人员责任。</p>
+<ul>
+  <li>构建 maker-checker 决策工作流框架，实现"无签核、无签发"和可审计追踪。</li>
+  <li>编码可执行的审查标准和仲裁规则（批准 / 返工 / 升级），处理证据缺失或冲突以及权限/管辖区阻断。中位重审轮次 2 → 1。</li>
+  <li>将高风险人工签核覆盖率从约 70–80% 提升至约 95–99%，通过自动化二线检查和分级审批。</li>
+  <li>标准化结构化审查包。跨团队争议/差异从 15–25% 降至 5–10%。</li>
+  <li>至可审查输出的周期时间：p50 2–4 小时 → 45–90 分钟；p95 1–2 个工作日 → 4–8 小时。</li>
+  <li>运维化重放和治理：trace_id、角色链、规则命中、证据 ID、仲裁结果、审批——回馈至重放/回归测试套件。</li>
+</ul>
+<div class="stack"><strong>技术栈：</strong>Python, FastAPI, LangGraph, OpenTelemetry, Jaeger, Langfuse, Prometheus / Grafana, Kubernetes, Helm, Istio。</div>
+
+<h2>工作经历</h2>
+
+<div class="job-header">
+  <span class="job-title">花旗，上海 — 助理副总裁 / 技术负责人</span>
+  <span class="job-date">2019.07 – 2025.09</span>
+</div>
+<ul>
+  <li>主导 AI Agent / RAG 平台的架构和交付，服务于受监管、审计敏感的工作流。将 LangGraph / LlamaIndex / Milvus 与确定性门控、可解释性追踪和受控升级路径结合。</li>
+  <li>负责平台可靠性和发布治理：SLO/SLI、告警和运维手册、通过 Istio 的金丝雀发布、CI/CD 加固和安全扫描。</li>
+  <li>制定 RFC、设计评审和事后复盘的工程标准。指导高级工程师，与产品合作确定方案方向。</li>
+</ul>
+
+<div class="job-header">
+  <span class="job-title">eBay (AWF)，上海 — 高级全栈工程师</span>
+  <span class="job-date">2018.10 – 2019.07</span>
+</div>
+<ul>
+  <li>构建并运营面向大规模遥测数据的实时日志分析和告警平台。主导 MySQL → TiDB 迁移和基于 Kubernetes 的部署以提升可扩展性。</li>
+  <li>在大规模电商环境中加强生产可观测性（Prometheus / Grafana）和事件响应流程。</li>
+</ul>
+
+<div class="job-header">
+  <span class="job-title">你我贷，上海 — 高级全栈工程师</span>
+  <span class="job-date">2018.07 – 2018.10</span>
+</div>
+<ul>
+  <li>交付借贷工作流系统的后端服务。专注于吞吐量/延迟调优和生产加固（超时/重试、幂等性、运维就绪）。</li>
+</ul>
+
+<div class="job-header">
+  <span class="job-title">花旗，上海 — 高级全栈工程师</span>
+  <span class="job-date">2016.08 – 2018.07</span>
+</div>
+<ul>
+  <li>基于 Spring Boot / Spring Cloud 设计和交付内部财务和运营平台的分布式服务。专注于 API 架构、数据集成和可靠性基础（监控、运维手册、值班）。</li>
+</ul>
+
+<div class="job-header">
+  <span class="job-title">早期经历 — 全栈 / 高级工程师</span>
+  <span class="job-date">2012.12 – 2016.06</span>
+</div>
+<p>ODianYun、纬创、北京沐融科技。构建企业应用和后端服务；建立系统设计、数据存储、部署和生产支持的基础。</p>
+
+<h2>教育背景</h2>
+<div class="edu-row">
+  <span><span class="edu-school">华东交通大学</span>&nbsp;&nbsp;计算机科学与技术 学士</span>
+  <span class="edu-date">2009 – 2013</span>
+</div>
+
+<h2>技术技能</h2>
+<p><span class="skill-label">语言：</span>Java, Python。熟悉 TypeScript / Node.js。</p>
+<p><span class="skill-label">LLM / AI 工程：</span>LangGraph, LangChain, LlamaIndex, Milvus, 混合检索（向量 + BM25）, 重排序, 元数据版本管理, 工具/函数调用, 结构化输出, 评估与重放, 安全护栏（PII 最小化、提示注入防御）, OpenAI API, Hugging Face (Transformers, LoRA / QLoRA), InternLM XTuner, vLLM, LMDeploy (Turbomind / PyTorch / TensorRT-LLM)。</p>
+<p><span class="skill-label">后端与 API：</span>Spring Boot, Spring Cloud, FastAPI, Flask, Gunicorn, RESTful 微服务, API 设计与集成, 事件驱动架构。</p>
+<p><span class="skill-label">分布式系统与可靠性：</span>高可用, 低延迟, SLO / SLI, 告警和运维手册, 事故调试, 金丝雀发布, 流量管理, 超时/重试/熔断器, 幂等性。</p>
+<p><span class="skill-label">数据库与缓存：</span>MySQL, PostgreSQL, TiDB, MongoDB, Redis。</p>
+<p><span class="skill-label">云原生与 DevOps：</span>Docker, Kubernetes, Helm, Istio, Jenkins, GitHub Actions, 加固镜像, 带自动化测试和安全扫描的 CI/CD。</p>
+<p><span class="skill-label">可观测性：</span>Prometheus, Grafana, OpenTelemetry (Collector), Jaeger, Langfuse。</p>
+<p><span class="skill-label">开发工具：</span>Claude Code, Cursor, GitHub Copilot, n8n。日常用于编码、代码评审、测试、文档和工程效能。</p>
+
+</body>
+</html>
