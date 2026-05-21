@@ -4,16 +4,16 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Three Layers of Evaluation for Agents in Production — Ming Zhou</title>
-  <meta name="description" content="Component-level, workflow-level, and operational-level evaluation — why you need all three, and how replay-based testing connects them.">
+  <meta name="description" content="A practical framework for evaluating production AI agents at three levels — component, workflow, and operational — with replay-based testing patterns and real metrics from regulated deployments.">
   <meta property="og:title" content="Three Layers of Evaluation for Agents in Production — Ming Zhou">
-  <meta property="og:description" content="Component-level, workflow-level, and operational-level evaluation — why you need all three, and how replay-based testing connects them.">
+  <meta property="og:description" content="A practical framework for evaluating production AI agents at three levels — component, workflow, and operational — with replay-based testing patterns and real metrics from regulated deployments.">
   <meta property="og:type" content="article">
   <meta property="og:url" content="https://mzyag.github.io/writing/three-layers-evaluation.html">
   <meta property="og:locale" content="en_US">
   <meta property="og:site_name" content="Ming Zhou">
   <meta name="twitter:card" content="summary">
   <meta name="twitter:title" content="Three Layers of Evaluation for Agents in Production">
-  <meta name="twitter:description" content="Component-level, workflow-level, and operational-level evaluation — why you need all three, and how replay-based testing connects them.">
+  <meta name="twitter:description" content="A practical framework for evaluating production AI agents at three levels — component, workflow, and operational — with replay-based testing patterns and real metrics from regulated deployments.">
   <meta name="author" content="Ming Zhou">
   <link rel="canonical" href="https://mzyag.github.io/writing/three-layers-evaluation.html">
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect fill='%2309090b' width='100' height='100' rx='16'/%3E%3Ctext x='50' y='72' font-family='Inter,sans-serif' font-size='64' font-weight='700' fill='%233b82f6' text-anchor='middle'%3EM%3C/text%3E%3C/svg%3E">
@@ -65,8 +65,8 @@
     </h1>
 
     <p class="article-lead">
-      <span data-en>Everyone agrees that evaluating AI agents is important. But most teams stop at one layer — usually retrieval quality or end-to-end accuracy — and then wonder why production issues keep surprising them. After operating an agent platform across multiple business lines, I've found that you need three distinct layers of evaluation, each catching a different class of failure.</span>
-      <span data-zh>每个人都认为评估 AI Agent 很重要。但大多数团队停在一个层面——通常是检索质量或端到端准确性——然后困惑为什么生产问题不断出现。在运营一个跨多条业务线的 Agent 平台后，我发现你需要三个不同的评估层，每一层捕获不同类别的故障。</span>
+      <span data-en>If you're evaluating your AI agent only on retrieval quality or end-to-end accuracy, you're likely missing an entire class of production failures. Most teams stop at one layer and then wonder why issues keep surprising them. After operating an agent platform across multiple regulated business lines, I've found that you need three distinct layers of evaluation, each catching a different class of failure.</span>
+      <span data-zh>如果你只在检索质量或端到端准确性上评估你的 AI Agent，你很可能遗漏了一整类生产故障。大多数团队停在一个层面，然后困惑为什么问题不断出现。在运营一个跨多条受监管业务线的 Agent 平台后，我发现你需要三个不同的评估层，每一层捕获不同类别的故障。</span>
     </p>
 
     <h2><span data-en>Why One Layer Isn't Enough</span><span data-zh>为什么一层不够</span></h2>
@@ -99,7 +99,7 @@
     </p>
 
     <ul>
-      <li><span data-en><strong>Retrieval quality</strong> — Are you getting the right documents? Precision, recall, and ranking metrics (MRR, NDCG) on a curated test set.</span><span data-zh><strong>检索质量</strong>——是否获取了正确的文档？在精选测试集上的精确率、召回率和排名指标（MRR、NDCG）。</span></li>
+      <li><span data-en><strong>Retrieval quality</strong> — Are you getting the right documents? Precision, recall, and ranking metrics (MRR — Mean Reciprocal Rank, measuring how high the first relevant result appears; NDCG — Normalized Discounted Cumulative Gain, measuring overall ranking quality) on a curated test set.</span><span data-zh><strong>检索质量</strong>——是否获取了正确的文档？在精选测试集上的精确率、召回率和排名指标（MRR——平均倒数排名，衡量第一个相关结果的排名位置；NDCG——归一化折损累积增益，衡量整体排名质量）。</span></li>
       <li><span data-en><strong>Output format compliance</strong> — Does the structured output match the declared schema? Are required fields present?</span><span data-zh><strong>输出格式合规性</strong>——结构化输出是否匹配声明的 schema？必需字段是否存在？</span></li>
       <li><span data-en><strong>Citation accuracy</strong> — Does each citation actually support the claim it's attached to? Can the cited passage be found in the source document?</span><span data-zh><strong>引用准确性</strong>——每个引用是否确实支持它所附属的声明？引用的段落是否能在源文档中找到？</span></li>
       <li><span data-en><strong>Tool call correctness</strong> — When the agent decides to call a tool, does it pass the right parameters? Does it handle the response correctly?</span><span data-zh><strong>工具调用正确性</strong>——当 Agent 决定调用工具时，是否传递了正确的参数？是否正确处理了响应？</span></li>
@@ -172,7 +172,7 @@
     </p>
 
     <ul>
-      <li><span data-en><strong>SLOs</strong> — Latency (p50, p95, p99), availability, error rate. Standard SRE metrics, applied to AI workloads.</span><span data-zh><strong>SLO</strong>——延迟（p50、p95、p99）、可用性、错误率。标准 SRE 指标，应用于 AI 工作负载。</span></li>
+      <li><span data-en><strong>SLOs (Service Level Objectives)</strong> — Latency (p50, p95, p99 — the median, 95th-percentile, and 99th-percentile response times), availability, error rate. Standard SRE (Site Reliability Engineering) metrics, applied to AI workloads.</span><span data-zh><strong>SLO（服务等级目标）</strong>——延迟（p50、p95、p99——中位数、第 95 百分位和第 99 百分位响应时间）、可用性、错误率。标准 SRE（站点可靠性工程）指标，应用于 AI 工作负载。</span></li>
       <li><span data-en><strong>Business metrics</strong> — Downstream rejection rates, rework counts, escalation rates. These are the metrics that business stakeholders actually care about.</span><span data-zh><strong>业务指标</strong>——下游拒绝率、返工次数、升级率。这些是业务利益相关者真正关心的指标。</span></li>
       <li><span data-en><strong>Drift detection</strong> — Are answer patterns changing without a model change? Drift in output distribution can indicate data pipeline issues, upstream schema changes, or prompt injection attempts.</span><span data-zh><strong>漂移检测</strong>——在没有模型更改的情况下，答案模式是否在变化？输出分布的漂移可能表明数据管道问题、上游 schema 更改或提示注入尝试。</span></li>
       <li><span data-en><strong>Incident learning</strong> — Every P1/P2 incident should produce a root cause analysis and a new regression test at Layer 2. This closes the loop.</span><span data-zh><strong>事件学习</strong>——每个 P1/P2 事件应产生根因分析和一个新的第二层回归测试。这闭合了循环。</span></li>
@@ -208,9 +208,19 @@
     </p>
 
     <p>
-      <span data-en>Between Q2 and Q4 2024, after rolling out all three layers, P1 incidents went from 8 in June to 3 in September; P2s dropped from 14 to 5 over the same period. MTTR fell from a median of 73 minutes in Q2 to 31 minutes in Q4 — largely because Layer 2 replays could reproduce 80% of issues within the first five minutes of triage. The catalyst was a July model-provider update that silently changed output formatting in long-context windows; component tests passed, but replay caught a 9% regression in citation placement across two business lines before the change reached general traffic. That single incident justified the entire replay infrastructure.</span>
-      <span data-zh>2024 年第二季度到第四季度，三层评估全面上线后，P1 事件从 6 月的 8 次降至 9 月的 3 次；P2 事件同期从 14 次降至 5 次。MTTR 中位数从第二季度的 73 分钟降至第四季度的 31 分钟——主要因为第二层重放能在分诊前五分钟内复现 80% 的问题。转折点是 7 月一次模型供应商更新，该更新悄然改变了长上下文窗口的输出格式；组件测试全部通过，但重放在变更进入正式流量前，发现两条业务线上引用定位出现了 9% 的回归。仅这一次事件就证明了整套重放基础设施的价值。</span>
+      <span data-en>Between Q2 and Q4 2024, after rolling out all three layers, P1 incidents went from 8 in June to 3 in September; P2s dropped from 14 to 5 over the same period. MTTR (Mean Time to Resolution — how long it takes to fix an incident) fell from a median of 73 minutes in Q2 to 31 minutes in Q4 — largely because Layer 2 replays could reproduce 80% of issues within the first five minutes of triage. The catalyst was a July model-provider update that silently changed output formatting in long-context windows; component tests passed, but replay caught a 9% regression in citation placement across two business lines before the change reached general traffic. That single incident justified the entire replay infrastructure.</span>
+      <span data-zh>2024 年第二季度到第四季度，三层评估全面上线后，P1 事件从 6 月的 8 次降至 9 月的 3 次；P2 事件同期从 14 次降至 5 次。MTTR（平均修复时间——从发现事件到解决所需的时间）中位数从第二季度的 73 分钟降至第四季度的 31 分钟——主要因为第二层重放能在分诊前五分钟内复现 80% 的问题。转折点是 7 月一次模型供应商更新，该更新悄然改变了长上下文窗口的输出格式；组件测试全部通过，但重放在变更进入正式流量前，发现两条业务线上引用定位出现了 9% 的回归。仅这一次事件就证明了整套重放基础设施的价值。</span>
     </p>
+
+    <h2><span data-en>Checklist: Building an Evaluation Pipeline</span><span data-zh>清单：构建评估管道</span></h2>
+
+    <ol>
+      <li><span data-en><strong>Set up component-level tests that run on every PR.</strong> At minimum: retrieval relevance, output schema validation, and citation accuracy. These should complete in minutes, not hours.</span><span data-zh><strong>设置在每个 PR 上运行的组件级测试。</strong>至少包括：检索相关性、输出 schema 验证和引用准确性。这些应在分钟内完成，而非数小时。</span></li>
+      <li><span data-en><strong>Build a curated replay set from production traces.</strong> Capture real queries, retrieved context, outputs, and human feedback. Tag traces with expected outcomes. Aim for coverage across domains, edge cases, and past failures.</span><span data-zh><strong>从生产 trace 构建策展重放集。</strong>捕获真实查询、检索上下文、输出和人工反馈。用预期结果标记 trace。目标是覆盖各领域、边缘情况和历史故障。</span></li>
+      <li><span data-en><strong>Gate every model or prompt change with replay regression tests.</strong> Define a regression threshold (e.g., 3% drop in semantic similarity) and treat citation regression as a blocking failure. No change ships if it's worse on critical traces.</span><span data-zh><strong>用重放回归测试守护每次模型或提示词变更。</strong>定义回归阈值（例如语义相似度下降 3%），将引用回归视为阻断性失败。如果在关键 trace 上表现更差，变更不发布。</span></li>
+      <li><span data-en><strong>Track operational metrics alongside technical ones.</strong> Downstream rejection rates, rework counts, and escalation rates tell you what your test suite can't. Wire them into the same dashboard as your SLOs.</span><span data-zh><strong>在技术指标之外跟踪运营指标。</strong>下游拒绝率、返工次数和升级率能告诉你测试套件发现不了的问题。将它们和 SLO 放在同一个仪表板上。</span></li>
+      <li><span data-en><strong>Close the feedback loop: every incident becomes a test.</strong> Each P1/P2 incident should produce a root cause analysis, a new replay trace at Layer 2, and a new component assertion at Layer 1. This is how the evaluation pipeline gets smarter over time.</span><span data-zh><strong>闭合反馈循环：每个事件都变成一个测试。</strong>每个 P1/P2 事件应产生根因分析、一个新的第二层重放 trace 和一个新的第一层组件断言。这是评估管道随时间变得更智能的方式。</span></li>
+    </ol>
 
     <div class="article-page-footer">
       <p><span data-en>Written by Ming Zhou · 2025</span><span data-zh>作者：Ming Zhou · 2025</span></p>

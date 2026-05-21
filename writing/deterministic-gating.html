@@ -4,16 +4,16 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Why Deterministic Gating Matters for Production Agents — Ming Zhou</title>
-  <meta name="description" content="LLMs are probabilistic. Production systems need deterministic control points. The four-outcome routing pattern and why guardrails alone aren't enough.">
+  <meta name="description" content="A practical pattern for adding deterministic control points to LLM-based agents: the four-outcome routing gate, concrete implementation examples, and production results across regulated business lines.">
   <meta property="og:title" content="Why Deterministic Gating Matters for Production Agents — Ming Zhou">
-  <meta property="og:description" content="LLMs are probabilistic. Production systems need deterministic control points. The four-outcome routing pattern and why guardrails alone aren't enough.">
+  <meta property="og:description" content="A practical pattern for adding deterministic control points to LLM-based agents: the four-outcome routing gate, concrete implementation examples, and production results across regulated business lines.">
   <meta property="og:type" content="article">
   <meta property="og:url" content="https://mzyag.github.io/writing/deterministic-gating.html">
   <meta property="og:locale" content="en_US">
   <meta property="og:site_name" content="Ming Zhou">
   <meta name="twitter:card" content="summary">
   <meta name="twitter:title" content="Why Deterministic Gating Matters for Production Agents">
-  <meta name="twitter:description" content="LLMs are probabilistic. Production systems need deterministic control points. The four-outcome routing pattern and why guardrails alone aren't enough.">
+  <meta name="twitter:description" content="A practical pattern for adding deterministic control points to LLM-based agents: the four-outcome routing gate, concrete implementation examples, and production results across regulated business lines.">
   <meta name="author" content="Ming Zhou">
   <link rel="canonical" href="https://mzyag.github.io/writing/deterministic-gating.html">
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect fill='%2309090b' width='100' height='100' rx='16'/%3E%3Ctext x='50' y='72' font-family='Inter,sans-serif' font-size='64' font-weight='700' fill='%233b82f6' text-anchor='middle'%3EM%3C/text%3E%3C/svg%3E">
@@ -65,8 +65,8 @@
     </h1>
 
     <p class="article-lead">
-      <span data-en>LLMs are probabilistic by nature. Every response carries uncertainty. In a demo, that's fine — a plausible-sounding answer is good enough. In production, especially in regulated environments, "plausible" can mean "wrong in a way that causes real harm." You can't make the LLM itself deterministic. So you wrap it in control points that are.</span>
-      <span data-zh>LLM 天生是概率性的。每个回答都带有不确定性。在演示中这没问题——听起来合理的答案就够了。但在生产环境中，特别是受监管的环境中，"合理"可能意味着"以造成实际损害的方式出错"。你无法让 LLM 本身变得确定性。所以你用确定性控制点包裹它。</span>
+      <span data-en>If you've deployed an LLM-based agent into a production environment, you already know the core tension: every response carries uncertainty. In a demo, a plausible-sounding answer is good enough. In production, especially in regulated environments, "plausible" can mean "wrong in a way that causes real harm." You can't make the LLM itself deterministic. So you wrap it in control points that are.</span>
+      <span data-zh>如果你已经将基于 LLM 的 Agent 部署到生产环境，你已经了解核心矛盾：每个回答都带有不确定性。在演示中，听起来合理的答案就够了。但在生产环境中，特别是受监管的环境中，"合理"可能意味着"以造成实际损害的方式出错"。你无法让 LLM 本身变得确定性。所以你用确定性控制点包裹它。</span>
     </p>
 
     <h2><span data-en>The Production Gap</span><span data-zh>生产差距</span></h2>
@@ -143,14 +143,14 @@
 
     <h3><span data-en>Answerability Check</span><span data-zh>可回答性检查</span></h3>
     <p>
-      <span data-en>Before generation, verify that the retrieved context actually addresses the user's question. We compute cosine similarity between the query embedding and each retrieved chunk embedding, then check whether at least two chunks exceed a relevance threshold (0.72, calibrated on 5,000 labeled query-document pairs per business line). If no chunk passes, the gate routes to "refuse." If fewer than two pass, it routes to "citations-only." The LLM never sees irrelevant context — this single check eliminated roughly 60% of hallucinated answers in our first month. It's a vector operation, not an LLM reasoning step: ~3ms per request.</span>
-      <span data-zh>在生成之前，验证检索到的上下文是否确实针对用户的问题。我们计算查询向量与每个检索到的 chunk 向量之间的余弦相似度，检查是否至少有两个 chunk 超过相关性阈值（0.72，基于每条业务线 5,000 个标注的 query-document 对校准）。如果没有 chunk 通过，门控路由到"拒绝"。如果不足两个通过，路由到"仅引用"。LLM 永远不会看到不相关的上下文——仅这一项检查就在上线首月消除了约 60% 的幻觉回答。这是向量运算，不是 LLM 推理步骤：每次请求约 3ms。</span>
+      <span data-en>Before generation, verify that the retrieved context actually addresses the user's question. We compute cosine similarity (a measure of how close two vectors are in direction, ranging from 0 to 1) between the query embedding and each retrieved chunk embedding, then check whether at least two chunks exceed a relevance threshold (0.72, calibrated on 5,000 labeled query-document pairs per business line). If no chunk passes, the gate routes to "refuse." If fewer than two pass, it routes to "citations-only." The LLM never sees irrelevant context — this single check eliminated roughly 60% of hallucinated answers in our first month. It's a vector operation, not an LLM reasoning step: ~3ms per request.</span>
+      <span data-zh>在生成之前，验证检索到的上下文是否确实针对用户的问题。我们计算查询向量与每个检索到的 chunk 向量之间的余弦相似度（衡量两个向量方向接近程度的度量，范围 0 到 1），检查是否至少有两个 chunk 超过相关性阈值（0.72，基于每条业务线 5,000 个标注的 query-document 对校准）。如果没有 chunk 通过，门控路由到"拒绝"。如果不足两个通过，路由到"仅引用"。LLM 永远不会看到不相关的上下文——仅这一项检查就在上线首月消除了约 60% 的幻觉回答。这是向量运算，不是 LLM 推理步骤：每次请求约 3ms。</span>
     </p>
 
     <h3><span data-en>Evidence Threshold</span><span data-zh>证据阈值</span></h3>
     <p>
-      <span data-en>Every claim in the output must be backed by a retrievable citation. We enforce "no evidence, no conclusion" as a platform contract. The gate extracts claims from the LLM's structured output (each answer section maps to one claim), then scores each claim-evidence pair with a lightweight cross-encoder reranker — the same model used in the retrieval pipeline, repurposed as a verification step. If any claim scores below the evidence relevance threshold (0.65), or if overall claim coverage drops below the per-domain minimum (93% for fund compliance, 90% for credit advisory — tuned separately because evidence corpus structure varies), the output is downgraded to citations-only.</span>
-      <span data-zh>输出中的每个声明都必须有可检索的引用支持。我们将"无证据、无结论"作为平台契约执行。门控从 LLM 的结构化输出中提取声明（每个回答段落对应一个声明），然后用轻量级 cross-encoder reranker 对每个声明-证据对打分——与检索管道中使用的同一模型，在此复用为验证步骤。如果任何声明的证据相关性分数低于阈值（0.65），或整体声明覆盖率低于按领域设定的最低线（基金合规 93%、信贷咨询 90%——分别调优，因为证据语料库结构差异大），输出降级为仅引用。</span>
+      <span data-en>Every claim in the output must be backed by a retrievable citation. We enforce "no evidence, no conclusion" as a platform contract. The gate extracts claims from the LLM's structured output (each answer section maps to one claim), then scores each claim-evidence pair with a lightweight cross-encoder reranker (a model that scores query-document pairs together rather than independently, giving more accurate relevance rankings) — the same model used in the retrieval pipeline, repurposed as a verification step. If any claim scores below the evidence relevance threshold (0.65), or if overall claim coverage drops below the per-domain minimum (93% for fund compliance, 90% for credit advisory — tuned separately because evidence corpus structure varies), the output is downgraded to citations-only.</span>
+      <span data-zh>输出中的每个声明都必须有可检索的引用支持。我们将"无证据、无结论"作为平台契约执行。门控从 LLM 的结构化输出中提取声明（每个回答段落对应一个声明），然后用轻量级 cross-encoder reranker（一种将查询和文档拼接在一起联合打分的模型，比独立编码更准确地判断相关性）对每个声明-证据对打分——与检索管道中使用的同一模型，在此复用为验证步骤。如果任何声明的证据相关性分数低于阈值（0.65），或整体声明覆盖率低于按领域设定的最低线（基金合规 93%、信贷咨询 90%——分别调优，因为证据语料库结构差异大），输出降级为仅引用。</span>
     </p>
 
     <h3><span data-en>Version and Jurisdiction Constraints</span><span data-zh>版本和管辖区约束</span></h3>
@@ -191,6 +191,17 @@
       <span data-en>After 14 months in production, the thing I still don't have a clean answer for: how do you set escalation thresholds for a domain the system hasn't seen enough traffic in? Our fund compliance gates were tuned on ~80,000 queries. When we onboarded a private credit team last quarter, we were back to guessing — and the escalation rate jumped to 28% in their first two weeks. The gates worked exactly as designed; the calibration just wasn't there yet. I suspect this cold-start problem is going to be the bottleneck for any team trying to extend gating to new verticals.</span>
       <span data-zh>上线 14 个月后，我仍然没有干净答案的问题是：如何为系统尚未积累足够流量的领域设置升级阈值？我们的基金合规门控是在约 80,000 次查询上调优的。上季度接入一个私募信贷团队时，我们又回到了猜的状态——他们上线头两周升级率飙到了 28%。门控完全按设计运行，只是校准还没跟上。我怀疑这个冷启动问题会成为任何想把门控扩展到新垂直领域的团队的瓶颈。</span>
     </blockquote>
+
+    <h2><span data-en>Checklist: Adding Deterministic Gating to Your Agent</span><span data-zh>清单：为你的 Agent 添加确定性门控</span></h2>
+
+    <ol>
+      <li><span data-en><strong>Define your outcome set.</strong> Decide what the gate can output (e.g., answer / refuse / citations-only / escalate). Keep the set small and exhaustive — every request must land in exactly one outcome.</span><span data-zh><strong>定义结果集。</strong>确定门控可以输出的结果（例如：回答/拒绝/仅引用/升级）。保持结果集小且穷尽——每个请求必须落入恰好一个结果。</span></li>
+      <li><span data-en><strong>Implement gates as code, not prompts.</strong> Use rule-based logic (if/else, threshold checks, policy lookups) at orchestration boundaries — between retrieval and generation, between generation and output. No LLM calls inside the gate.</span><span data-zh><strong>用代码实现门控，而非提示词。</strong>在编排边界使用基于规则的逻辑（if/else、阈值检查、策略查找）——在检索与生成之间、生成与输出之间。门控内部不调用 LLM。</span></li>
+      <li><span data-en><strong>Calibrate thresholds on labeled data.</strong> Use real query-document pairs from your domain to set relevance and evidence thresholds. Start conservative (high escalation rate), then tune down as you collect production data.</span><span data-zh><strong>在标注数据上校准阈值。</strong>使用你所在领域的真实 query-document 对来设置相关性和证据阈值。从保守开始（高升级率），然后随着生产数据积累逐步调低。</span></li>
+      <li><span data-en><strong>Default to escalation on uncertainty.</strong> If the gate can't determine the right outcome — missing metadata, service timeout, unexpected input — route to a human, not to the LLM.</span><span data-zh><strong>不确定时默认升级。</strong>如果门控无法确定正确结果——缺少元数据、服务超时、意外输入——路由给人工，而非 LLM。</span></li>
+      <li><span data-en><strong>Log every gate decision.</strong> Record timestamp, gate ID, input signals, outcome, and reason. This audit trail is non-negotiable in regulated environments and invaluable for debugging everywhere else.</span><span data-zh><strong>记录每个门控决策。</strong>记录时间戳、gate ID、输入信号、结果和原因。在受监管环境中这份审计日志不可或缺，在其他环境中对调试也极有价值。</span></li>
+      <li><span data-en><strong>Plan for the cold-start problem.</strong> New domains will have high escalation rates until thresholds are calibrated. Budget for this ramp-up period and use early escalations as labeled data for tuning.</span><span data-zh><strong>为冷启动问题做准备。</strong>新领域在阈值校准之前会有较高的升级率。为这段爬坡期做好预算，并将早期的升级案例用作调优的标注数据。</span></li>
+    </ol>
 
     <div class="article-page-footer">
       <p><span data-en>Written by Ming Zhou · 2025</span><span data-zh>作者：Ming Zhou · 2025</span></p>

@@ -4,16 +4,16 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>When Not to Use an LLM — Ming Zhou</title>
-  <meta name="description" content="A decision framework for choosing between LLM inference and deterministic code in production systems — with two real cases where we ripped out LLM calls and shipped faster, cheaper, more reliable alternatives.">
+  <meta name="description" content="A practical five-question checklist for deciding when an LLM call is worth the latency, cost, and non-determinism — and when a regular function will do the job better.">
   <meta property="og:title" content="When Not to Use an LLM — Ming Zhou">
-  <meta property="og:description" content="A decision framework for choosing between LLM inference and deterministic code in production systems.">
+  <meta property="og:description" content="A practical five-question checklist for deciding when an LLM call is worth the latency, cost, and non-determinism — and when a regular function will do the job better.">
   <meta property="og:type" content="article">
   <meta property="og:url" content="https://mzyag.github.io/writing/when-not-to-use-llm.html">
   <meta property="og:locale" content="en_US">
   <meta property="og:site_name" content="Ming Zhou">
   <meta name="twitter:card" content="summary">
   <meta name="twitter:title" content="When Not to Use an LLM">
-  <meta name="twitter:description" content="A decision framework for choosing between LLM inference and deterministic code in production systems.">
+  <meta name="twitter:description" content="A practical five-question checklist for deciding when an LLM call is worth the latency, cost, and non-determinism — and when a regular function will do the job better.">
   <meta name="author" content="Ming Zhou">
   <link rel="canonical" href="https://mzyag.github.io/writing/when-not-to-use-llm.html">
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect fill='%2309090b' width='100' height='100' rx='16'/%3E%3Ctext x='50' y='72' font-family='Inter,sans-serif' font-size='64' font-weight='700' fill='%233b82f6' text-anchor='middle'%3EM%3C/text%3E%3C/svg%3E">
@@ -65,8 +65,8 @@
     </h1>
 
     <p class="article-lead">
-      <span data-en>After two years of building production AI agent systems, the most valuable skill I've developed isn't prompt engineering or RAG optimization. It's knowing when to reach for an LLM and when to write a regular function. The default should be skepticism — every LLM call in a pipeline is latency, cost, and a non-determinism surface. You need a clear reason to add one, not a clear reason to avoid it.</span>
-      <span data-zh>在构建生产级 AI Agent 系统两年后，我培养的最有价值的技能不是提示工程或 RAG 优化。而是知道何时使用 LLM、何时写一个普通函数。默认态度应该是怀疑——管道中的每个 LLM 调用都是延迟、成本和不确定性表面。你需要一个明确的理由来添加它，而不是一个明确的理由来避免它。</span>
+      <span data-en>If you're reaching for an LLM every time you need to transform data, classify a request, or validate input, stop and ask yourself: does this actually need language understanding? Every LLM call in your pipeline adds latency, cost, and a non-determinism surface. The default should be skepticism — you need a clear reason to add an LLM call, not a clear reason to avoid it. This article gives you a five-question framework and two real-world cases to help you draw that line.</span>
+      <span data-zh>如果你每次需要转换数据、分类请求或验证输入时都想用 LLM，请先停下来问自己：这真的需要语言理解吗？管道中的每个 LLM 调用都会增加延迟、成本和不确定性。默认态度应该是怀疑——你需要一个明确的理由来添加 LLM 调用，而不是一个明确的理由来避免它。本文提供一个五问框架和两个真实案例，帮你划清这条线。</span>
     </p>
 
     <h2><span data-en>The LLM Tax</span><span data-zh>LLM 税</span></h2>
@@ -124,8 +124,8 @@
     <h3><span data-en>Latency Matters More Than Flexibility</span><span data-zh>延迟比灵活性更重要</span></h3>
 
     <p>
-      <span data-en>When the data schema is known and the query patterns are predictable, a SQL query will always be faster than RAG. If your "AI-powered search" is really just querying a well-structured database, you're paying the LLM tax for something that SQL handles in milliseconds.</span>
-      <span data-zh>当数据 schema 已知且查询模式可预测时，SQL 查询总是比 RAG 更快。如果你的"AI 驱动的搜索"实际上只是查询一个结构良好的数据库，你就是在为 SQL 毫秒级可以处理的事情支付 LLM 税。</span>
+      <span data-en>When the data schema is known and the query patterns are predictable, a SQL query will always be faster than RAG (Retrieval-Augmented Generation — feeding retrieved documents into an LLM to produce an answer). If your "AI-powered search" is really just querying a well-structured database, you're paying the LLM tax for something that SQL handles in milliseconds.</span>
+      <span data-zh>当数据 schema 已知且查询模式可预测时，SQL 查询总是比 RAG（检索增强生成——将检索到的文档输入 LLM 来生成答案）更快。如果你的"AI 驱动的搜索"实际上只是查询一个结构良好的数据库，你就是在为 SQL 毫秒级可以处理的事情支付 LLM 税。</span>
     </p>
 
     <h2><span data-en>Two Times I Almost Reached for an LLM</span><span data-zh>两次我差点用了 LLM</span></h2>
@@ -136,13 +136,13 @@
     </p>
 
     <p>
-      <span data-en><strong>The validation layer.</strong> We needed to validate incoming webhook payloads from 14 partner integrations — each with slightly different schemas, inconsistent field naming, and occasionally malformed JSON. My first instinct was to throw the payload at GPT-4 with a prompt like "extract and normalize these fields." I built a prototype in an afternoon and it worked well enough in testing. Then I benchmarked it: 620ms average per call, $0.003 per validation, and a 2.1% hallucination rate where the model would "fill in" missing fields with plausible but fabricated values. For a system processing 400K webhooks/day, that meant ~8,400 silently corrupted records daily. I replaced it with a schema registry plus a rule engine — 47 JSONPath rules and a handful of regex normalizers. Processing time dropped to 3ms per payload. Cost went to effectively zero. Hallucination rate: zero, by definition. The whole rewrite took four days. The LLM prototype took one afternoon but would have cost us $36K/year in API fees alone, not counting the data quality incidents.</span>
-      <span data-zh><strong>验证层。</strong>我们需要验证来自 14 个合作伙伴集成的传入 webhook 负载——每个都有略微不同的 schema、不一致的字段命名，偶尔还有格式错误的 JSON。我的第一直觉是把负载扔给 GPT-4，配上"提取并标准化这些字段"的提示。我用一个下午构建了原型，在测试中表现不错。然后我做了基准测试：平均每次调用 620ms，每次验证 $0.003，还有 2.1% 的幻觉率——模型会用看似合理但虚假的值"填充"缺失字段。对于一个每天处理 40 万个 webhook 的系统，这意味着每天约 8,400 条静默损坏的记录。我用 schema 注册表加规则引擎替代了它——47 条 JSONPath 规则和几个正则标准化器。处理时间降到每个负载 3ms。成本实际上为零。幻觉率：从定义上就是零。整个重写花了四天。LLM 原型花了一个下午，但仅 API 费用每年就要 3.6 万美元，还不算数据质量事故。</span>
+      <span data-en><strong>The validation layer.</strong> We needed to validate incoming webhook payloads from 14 partner integrations — each with slightly different schemas, inconsistent field naming, and occasionally malformed JSON. My first instinct was to throw the payload at GPT-4 with a prompt like "extract and normalize these fields." I built a prototype in an afternoon and it worked well enough in testing. Then I benchmarked it: 620ms average per call, $0.003 per validation, and a 2.1% hallucination rate where the model would "fill in" missing fields with plausible but fabricated values. For a system processing 400K webhooks/day, that meant ~8,400 silently corrupted records daily. I replaced it with a schema registry plus a rule engine — 47 JSONPath rules (a query language for extracting values from JSON documents, similar to XPath for XML) and a handful of regex normalizers. Processing time dropped to 3ms per payload. Cost went to effectively zero. Hallucination rate: zero, by definition. The whole rewrite took four days. The LLM prototype took one afternoon but would have cost us $36K/year in API fees alone, not counting the data quality incidents.</span>
+      <span data-zh><strong>验证层。</strong>我们需要验证来自 14 个合作伙伴集成的传入 webhook 负载——每个都有略微不同的 schema、不一致的字段命名，偶尔还有格式错误的 JSON。我的第一直觉是把负载扔给 GPT-4，配上"提取并标准化这些字段"的提示。我用一个下午构建了原型，在测试中表现不错。然后我做了基准测试：平均每次调用 620ms，每次验证 $0.003，还有 2.1% 的幻觉率——模型会用看似合理但虚假的值"填充"缺失字段。对于一个每天处理 40 万个 webhook 的系统，这意味着每天约 8,400 条静默损坏的记录。我用 schema 注册表加规则引擎替代了它——47 条 JSONPath 规则（一种从 JSON 文档中提取值的查询语言，类似于 XML 的 XPath）和几个正则标准化器。处理时间降到每个负载 3ms。成本实际上为零。幻觉率：从定义上就是零。整个重写花了四天。LLM 原型花了一个下午，但仅 API 费用每年就要 3.6 万美元，还不算数据质量事故。</span>
     </p>
 
     <p>
-      <span data-en><strong>The routing decision.</strong> Our agent platform needed to route incoming user requests to one of 12 specialized sub-agents. The obvious approach was an LLM classifier — feed it the user message, get back a category. It worked, but added 780ms to every single interaction before the actual agent even started processing. For a system where perceived responsiveness matters enormously, that was unacceptable. I spent a week analyzing 50K historical requests and found that a keyword-based trie covering ~200 terms, combined with a lightweight TF-IDF model for the ambiguous cases (about 15% of traffic), matched the LLM's routing accuracy at 97.3% while resolving in under 2ms. The remaining 2.7% of "misroutes" were cases where even the LLM was inconsistent across runs. We shipped the trie. Median first-token latency for user-facing responses dropped from 1.4s to 0.6s overnight.</span>
-      <span data-zh><strong>路由决策。</strong>我们的 Agent 平台需要将传入的用户请求路由到 12 个专门的子 Agent 之一。显而易见的方法是 LLM 分类器——把用户消息喂给它，返回一个类别。它能用，但在实际 Agent 开始处理之前，给每次交互增加了 780ms。对于一个感知响应速度极其重要的系统来说，这是不可接受的。我花了一周分析了 5 万条历史请求，发现一个覆盖约 200 个术语的基于关键词的 trie，结合一个轻量级 TF-IDF 模型处理模糊情况（大约 15% 的流量），在 2ms 内解决，匹配了 LLM 97.3% 的路由准确率。剩余 2.7% 的"误路由"是即使 LLM 在不同运行中也不一致的情况。我们上线了 trie。面向用户的首 token 中位延迟一夜之间从 1.4 秒降到了 0.6 秒。</span>
+      <span data-en><strong>The routing decision.</strong> Our agent platform needed to route incoming user requests to one of 12 specialized sub-agents. The obvious approach was an LLM classifier — feed it the user message, get back a category. It worked, but added 780ms to every single interaction before the actual agent even started processing. For a system where perceived responsiveness matters enormously, that was unacceptable. I spent a week analyzing 50K historical requests and found that a keyword-based trie (a tree structure that matches strings by prefix, enabling O(k) lookup where k is the key length) covering ~200 terms, combined with a lightweight TF-IDF model (Term Frequency-Inverse Document Frequency — a classic statistical method that scores how important a word is to a document relative to a corpus) for the ambiguous cases (about 15% of traffic), matched the LLM's routing accuracy at 97.3% while resolving in under 2ms. The remaining 2.7% of "misroutes" were cases where even the LLM was inconsistent across runs. We shipped the trie. Median first-token latency for user-facing responses dropped from 1.4s to 0.6s overnight.</span>
+      <span data-zh><strong>路由决策。</strong>我们的 Agent 平台需要将传入的用户请求路由到 12 个专门的子 Agent 之一。显而易见的方法是 LLM 分类器——把用户消息喂给它，返回一个类别。它能用，但在实际 Agent 开始处理之前，给每次交互增加了 780ms。对于一个感知响应速度极其重要的系统来说，这是不可接受的。我花了一周分析了 5 万条历史请求，发现一个覆盖约 200 个术语的基于关键词的 trie（一种按前缀匹配字符串的树结构，查找时间为 O(k)，k 为键长），结合一个轻量级 TF-IDF 模型（词频-逆文档频率——一种经典统计方法，衡量词语相对于语料库的重要性）处理模糊情况（大约 15% 的流量），在 2ms 内解决，匹配了 LLM 97.3% 的路由准确率。剩余 2.7% 的"误路由"是即使 LLM 在不同运行中也不一致的情况。我们上线了 trie。面向用户的首 token 中位延迟一夜之间从 1.4 秒降到了 0.6 秒。</span>
     </p>
 
     <h2><span data-en>A Decision Framework</span><span data-zh>决策框架</span></h2>
@@ -192,6 +192,28 @@
       <span data-en>Last quarter I audited our platform's inference spend. Of 23 LLM calls in the pipeline, we eliminated 9 by replacing them with deterministic code. Monthly inference cost dropped from $14,200 to $5,800. Median end-to-end latency fell by 40%. The number of production incidents tagged "non-deterministic behavior" went from 7 per month to 1. The one thing I'm still not sure about: where the line sits for tasks that are 80% deterministic and 20% genuinely ambiguous. We currently run those through the LLM, but I suspect there's a hybrid approach — deterministic fast path with LLM fallback — that we haven't built yet. If you've figured that pattern out, I'd like to hear about it.</span>
       <span data-zh>上个季度我审计了平台的推理开支。管道中 23 个 LLM 调用里，我们通过替换为确定性代码消除了 9 个。月推理成本从 14,200 美元降到 5,800 美元。中位端到端延迟下降了 40%。标记为"不确定性行为"的生产事故从每月 7 起降到 1 起。我仍然不确定的一件事是：对于 80% 确定性、20% 真正模糊的任务，界限在哪里。我们目前把这些交给 LLM 处理，但我怀疑有一种混合方法——确定性快速路径加 LLM 回退——我们还没构建出来。如果你已经摸索出了这个模式，我很想听听。</span>
     </blockquote>
+
+    <h2><span data-en>Checklist: Before You Add an LLM Call</span><span data-zh>检查清单：在添加 LLM 调用之前</span></h2>
+
+    <p>
+      <span data-en>Use this checklist every time you consider adding an LLM call to a pipeline. If you check three or more boxes, you probably don't need one.</span>
+      <span data-zh>每次考虑向管道添加 LLM 调用时，请使用此检查清单。如果你勾选了三项或更多，你很可能不需要 LLM。</span>
+    </p>
+
+    <ul>
+      <li><span data-en><strong>Input is structured</strong> — The data has a known schema. A parser or query can extract what you need without language understanding.</span><span data-zh><strong>输入是结构化的</strong>——数据有已知的 schema。解析器或查询就能提取你需要的内容，不需要语言理解。</span></li>
+      <li><span data-en><strong>Output format is fixed</strong> — The response shape never changes. A template engine (Jinja2, Handlebars) is faster and deterministic.</span><span data-zh><strong>输出格式是固定的</strong>——响应形状永远不变。模板引擎（Jinja2、Handlebars）更快且确定性。</span></li>
+      <li><span data-en><strong>No human in the loop</strong> — Every error goes straight to production. Consider whether you can tolerate the LLM's hallucination rate at your request volume.</span><span data-zh><strong>没有人在环路中</strong>——每个错误都直接进入生产。考虑在你的请求量下能否容忍 LLM 的幻觉率。</span></li>
+      <li><span data-en><strong>Wrong answers are expensive</strong> — Financial, legal, or safety consequences. Gate every LLM output through deterministic validation and human sign-off.</span><span data-zh><strong>错误答案代价高昂</strong>——有财务、法律或安全后果。对每个 LLM 输出都通过确定性验证和人工签核进行门控。</span></li>
+      <li><span data-en><strong>Correctness is hard to measure</strong> — If you can't define a metric for "correct," you can't tell whether the LLM is helping or hurting.</span><span data-zh><strong>正确性难以衡量</strong>——如果你无法定义"正确"的指标，你就无法判断 LLM 是在帮忙还是在添乱。</span></li>
+      <li><span data-en><strong>Latency budget is tight</strong> — Your p95 latency target leaves no room for the 200ms-2s overhead of an LLM call. Benchmark before committing.</span><span data-zh><strong>延迟预算紧张</strong>——你的 p95 延迟目标没有为 LLM 调用的 200ms-2s 开销留下空间。先做基准测试再决定。</span></li>
+      <li><span data-en><strong>A deterministic alternative exists</strong> — Regex, rule engine, lookup table, lightweight classifier. If one of these gets you to 95%+ accuracy, start there and add an LLM fallback only for the long tail.</span><span data-zh><strong>存在确定性替代方案</strong>——正则表达式、规则引擎、查找表、轻量级分类器。如果其中之一能达到 95%+ 准确率，先从它开始，仅对长尾情况添加 LLM 回退。</span></li>
+    </ul>
+
+    <p>
+      <span data-en>When you do use an LLM, enforce the boundary: <strong>LLM decides what, deterministic code decides whether.</strong> Let the LLM handle understanding and generation. Let rules, validators, and humans handle authorization and control. Enforce this split at the architecture level, not through developer discipline.</span>
+      <span data-zh>当你确实使用 LLM 时，强制执行边界：<strong>LLM 决定"做什么"，确定性代码决定"是否做"。</strong>让 LLM 处理理解和生成。让规则、验证器和人类处理授权和控制。在架构层面强制执行此分工，而非依赖开发者自律。</span>
+    </p>
 
     <div class="article-page-footer">
       <p><span data-en>Written by Ming Zhou · 2025</span><span data-zh>作者：Ming Zhou · 2025</span></p>

@@ -4,16 +4,16 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Memory Architecture for Production Agents: Beyond the Context Window — Ming Zhou</title>
-  <meta name="description" content="How to design a layered memory system for production agents — session TTL, preference extraction, budget-aware context injection, and episode-based learning loops.">
+  <meta name="description" content="A practical guide to designing layered memory for production LLM agents — session TTL, four-dimension content taxonomy, budget-aware context injection, and episode-based self-improvement loops.">
   <meta property="og:title" content="Memory Architecture for Production Agents: Beyond the Context Window — Ming Zhou">
-  <meta property="og:description" content="How to design a layered memory system for production agents — session TTL, preference extraction, budget-aware context injection, and episode-based learning loops.">
+  <meta property="og:description" content="A practical guide to designing layered memory for production LLM agents — session TTL, four-dimension content taxonomy, budget-aware context injection, and episode-based self-improvement loops.">
   <meta property="og:type" content="article">
   <meta property="og:url" content="https://mzyag.github.io/writing/memory-architecture.html">
   <meta property="og:locale" content="en_US">
   <meta property="og:site_name" content="Ming Zhou">
   <meta name="twitter:card" content="summary">
   <meta name="twitter:title" content="Memory Architecture for Production Agents: Beyond the Context Window">
-  <meta name="twitter:description" content="How to design a layered memory system for production agents — session TTL, preference extraction, budget-aware context injection, and episode-based learning loops.">
+  <meta name="twitter:description" content="A practical guide to designing layered memory for production LLM agents — session TTL, four-dimension content taxonomy, budget-aware context injection, and episode-based self-improvement loops.">
   <meta name="author" content="Ming Zhou">
   <link rel="canonical" href="https://mzyag.github.io/writing/memory-architecture.html">
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect fill='%2309090b' width='100' height='100' rx='16'/%3E%3Ctext x='50' y='72' font-family='Inter,sans-serif' font-size='64' font-weight='700' fill='%233b82f6' text-anchor='middle'%3EM%3C/text%3E%3C/svg%3E">
@@ -23,7 +23,7 @@
     "@context": "https://schema.org",
     "@type": "Article",
     "headline": "Memory Architecture for Production Agents: Beyond the Context Window",
-    "description": "How to design a layered memory system for production agents — session TTL, preference extraction, budget-aware context injection, and episode-based learning loops.",
+    "description": "A practical guide to designing layered memory for production LLM agents — session TTL, four-dimension content taxonomy, budget-aware context injection, and episode-based self-improvement loops.",
     "author": {"@type": "Person", "name": "Ming Zhou", "url": "https://mzyag.github.io/"},
     "publisher": {"@type": "Person", "name": "Ming Zhou"},
     "url": "https://mzyag.github.io/writing/memory-architecture.html",
@@ -65,8 +65,8 @@
     </h1>
 
     <p class="article-lead">
-      <span data-en>Tell your agent "always use /workspace as the project root" on Monday. By Wednesday it's asking you again. This is the goldfish problem — most agents have no memory beyond the current context window. In a demo, that's an inconvenience. In production, it's a trust destroyer. Users stop relying on the agent because they can't trust it to remember what they've already established. Here's how we designed a memory system that solves this without blowing up the token budget.</span>
-      <span data-zh>周一告诉你的 Agent "始终使用 /workspace 作为项目根目录"。到周三它又在问你。典型的"七秒记忆"——大多数 Agent 的记忆不会超出当前上下文窗口。演示时这只是小瑕疵。到了生产，这直接摧毁用户信任。用户发现 Agent 记不住已经说好的事情，就不会再依赖它。下面是我们如何设计一套记忆系统来解决这个问题，同时不撑爆 token 预算。</span>
+      <span data-en>If you've told your agent "always use /workspace as the project root" on Monday only to have it ask again by Wednesday, you've hit the goldfish problem. Most agents have no memory beyond the current context window. In a demo, that's an inconvenience. In production, it's a trust destroyer — users stop relying on the agent because they can't trust it to remember what they've already established. This article walks through a three-tier memory architecture, a four-dimension content taxonomy, budget-aware context injection, and an episode-based self-improvement loop, all drawn from eight months of production operation on a financial services platform.</span>
+      <span data-zh>如果你周一告诉 Agent "始终使用 /workspace 作为项目根目录"，到周三它又在问你，你就遇到了"七秒记忆"问题。大多数 Agent 的记忆不会超出当前上下文窗口。演示时这只是小瑕疵。到了生产，这直接摧毁用户信任——用户发现 Agent 记不住已经说好的事情，就不会再依赖它。本文将介绍一个三层记忆架构、四维度内容分类、预算感知的上下文注入以及基于 episode 的自改进循环，全部来自在金融服务平台上八个月的生产运行经验。</span>
     </p>
 
     <h2><span data-en>Why Sliding Windows Aren't Enough</span><span data-zh>为什么滑动窗口不够</span></h2>
@@ -107,8 +107,8 @@
     </p>
 
     <p>
-      <span data-en>The critical addition: <strong>session TTL.</strong> If the user is inactive for more than one hour, the conversation window expires. But it doesn't just disappear — it gets compressed into a summary (Tier 3) before eviction. The next time the user speaks, the agent doesn't have the raw conversation, but it has a compressed digest: "Last session: we discussed refactoring ws_bot.py into 8 modules. Outcome: completed successfully."</span>
-      <span data-zh>关键新增：<strong>会话 TTL。</strong>如果用户超过一小时不活跃，对话窗口过期。但它不会直接消失——在驱逐前被压缩为摘要（第三层）。下次用户说话时，Agent 没有原始对话，但有压缩摘要："上次会话：我们讨论了将 ws_bot.py 拆分为 8 个模块。结果：成功完成。"</span>
+      <span data-en>The critical addition: <strong>session TTL.</strong> If the user is inactive for more than one hour, the conversation window expires. But it doesn't just disappear — it gets compressed into a summary (Tier 3) before eviction. The next time the user speaks, the agent doesn't have the raw conversation, but it has a compressed digest: "Last session: we discussed refactoring task_bot.py into 8 modules. Outcome: completed successfully."</span>
+      <span data-zh>关键新增：<strong>会话 TTL。</strong>如果用户超过一小时不活跃，对话窗口过期。但它不会直接消失——在驱逐前被压缩为摘要（第三层）。下次用户说话时，Agent 没有原始对话，但有压缩摘要："上次会话：我们讨论了将 task_bot.py 拆分为 8 个模块。结果：成功完成。"</span>
     </p>
 
     <p>
@@ -266,12 +266,12 @@
 
     <pre><code>{
   "task_type": "team",
-  "description": "Refactor ws_bot.py into 8 modules",
+  "description": "Refactor task_bot.py into 8 modules",
   "duration_sec": 420,
   "steps_planned": 5,
   "steps_completed": 5,
   "outcome": "success",
-  "files_changed": ["config.py", "state.py", "feishu_api.py", ...],
+  "files_changed": ["config.py", "state.py", "api_client.py", ...],
   "timestamp": "2025-03-15T10:45:00"
 }</code></pre>
 
@@ -371,8 +371,8 @@
     <h3><span data-en>What the Loop Looks Like in Practice</span><span data-zh>循环在实践中的样子</span></h3>
 
     <p>
-      <span data-en>A concrete example from our system: episode logs showed that "multi-file refactoring" tasks had a 65% success rate, with most failures caused by the agent missing import updates in dependent files. The root cause was instruction ambiguity — the system prompt said "refactor the target file" but didn't mention transitive dependencies. The fix: a single sentence added to the system prompt — "After modifying a file, check all files that import from it and update references accordingly." Post-change, multi-file refactoring success rate went to 88% within a week. The episode data told us <em>what</em> was failing, the traces told us <em>why</em>, and the 7-day comparison told us the fix <em>worked</em>.</span>
-      <span data-zh>我们系统中的一个具体例子：episode 日志显示"多文件重构"任务成功率 65%，多数失败是因为 Agent 遗漏了依赖文件中的 import 更新。根因是指令模糊——系统提示说"重构目标文件"但没提传递依赖。修复：在系统提示中加一句——"修改文件后，检查所有从它导入的文件并相应更新引用。"变更后一周内，多文件重构成功率升至 88%。Episode 数据告诉我们<em>什么</em>在失败，追踪告诉我们<em>为什么</em>，7 天对比告诉我们修复<em>有效</em>。</span>
+      <span data-en>A concrete example: episode logs showed that "multi-file refactoring" tasks had a 65% success rate, with most failures caused by the agent missing import updates in dependent files. The root cause was instruction ambiguity — the system prompt said "refactor the target file" but didn't mention transitive dependencies. The fix: a single sentence added to the system prompt — "After modifying a file, check all files that import from it and update references accordingly." Post-change, multi-file refactoring success rate went to 88% within a week. The episode data told us <em>what</em> was failing, the traces told us <em>why</em>, and the 7-day comparison told us the fix <em>worked</em>.</span>
+      <span data-zh>一个具体例子：episode 日志显示"多文件重构"任务成功率 65%，多数失败是因为 Agent 遗漏了依赖文件中的 import 更新。根因是指令模糊——系统提示说"重构目标文件"但没提传递依赖。修复：在系统提示中加一句——"修改文件后，检查所有从它导入的文件并相应更新引用。"变更后一周内，多文件重构成功率升至 88%。Episode 数据告诉我们<em>什么</em>在失败，追踪告诉我们<em>为什么</em>，7 天对比告诉我们修复<em>有效</em>。</span>
     </p>
 
     <p>
@@ -449,6 +449,23 @@
       <span data-en>We've been running this memory system for eight months. The question we still can't answer: how do you evaluate memory quality? We can measure whether the agent uses injected memories — that's just prompt tracing. We can measure whether users repeat themselves less — that's a proxy for recall. But we can't easily measure whether the agent would have been better off without a stale memory. A project deadline from two months ago that's still in context doesn't cause a visible error — it causes a subtly wrong assumption that might never surface. We track memory injection rate, user-repetition rate, and correction frequency. We still don't have a metric for "memory that's actively making things worse by being present." If you figure that one out, let me know.</span>
       <span data-zh>这个记忆系统已经运行了八个月。我们仍然无法回答的问题是：如何评估记忆质量？我们可以衡量 Agent 是否使用了注入的记忆——那只是 prompt 追踪。我们可以衡量用户是否减少了重复——那是召回的代理指标。但我们无法轻易衡量 Agent 是否在没有一条过期记忆的情况下会表现更好。一个两个月前的项目截止日期仍然在上下文中不会导致可见的错误——它导致一个微妙的错误假设，可能永远不会浮出水面。我们追踪记忆注入率、用户重复率和纠正频率。我们仍然没有一个"因为存在而正在积极恶化结果的记忆"的指标。如果你找到了这个答案，告诉我。</span>
     </blockquote>
+
+    <h2><span data-en>Checklist: Building Memory for Your Agent</span><span data-zh>清单：为你的 Agent 构建记忆</span></h2>
+
+    <p>
+      <span data-en>If you're adding memory to an agent system, here's where to start. Each item is ordered by impact — the first few deliver most of the value.</span>
+      <span data-zh>如果你正在为 Agent 系统添加记忆，以下是起步指南。按影响力排序——前几项带来最大价值。</span>
+    </p>
+
+    <ol>
+      <li><span data-en><strong>Separate persistent memory from conversation.</strong> At minimum, extract user preferences ("reply in Chinese," "always use /workspace") into a file that survives session resets. This single change eliminates the most common trust-eroding behavior: the agent forgetting what you already told it.</span><span data-zh><strong>将持久记忆与对话分离。</strong>至少把用户偏好（"用中文回复"、"始终使用 /workspace"）提取到一个会话重置后仍保留的文件中。这个单一变更消除了最常见的信任侵蚀行为：Agent 忘记你已经告诉它的事情。</span></li>
+      <li><span data-en><strong>Add session TTL with compression.</strong> When the user is inactive for a threshold period (start with one hour), compress the conversation into a one-paragraph summary before evicting it. This preserves cross-session continuity without carrying stale context.</span><span data-zh><strong>添加带压缩的会话 TTL。</strong>当用户不活跃超过阈值（从一小时开始），在驱逐对话前将其压缩为一段摘要。这在不携带陈旧上下文的情况下保持跨会话连续性。</span></li>
+      <li><span data-en><strong>Classify persistent memories into dimensions.</strong> At minimum, separate user corrections (feedback) from general preferences. Feedback memories encode hard-won lessons — they should always be injected first, before other context. The four-dimension taxonomy (user, feedback, project, reference) can come later.</span><span data-zh><strong>将持久记忆分类为维度。</strong>至少把用户纠正（feedback）和一般偏好分开。Feedback 记忆编码来之不易的教训——它们应该始终最先注入，优先于其他上下文。四维度分类（user、feedback、project、reference）可以后续添加。</span></li>
+      <li><span data-en><strong>Set a context budget and enforce priorities.</strong> Pick a character budget (start with 4000 characters) and fill it in priority order: feedback first, then user profile, then project context, then conversation turns. Never let conversation history crowd out persistent memories.</span><span data-zh><strong>设定上下文预算并执行优先级。</strong>选择一个字符预算（从 4000 字符开始），按优先级填充：先 feedback，然后用户画像，然后项目上下文，最后对话轮次。永远不要让对话历史挤掉持久记忆。</span></li>
+      <li><span data-en><strong>Use atomic writes for all state.</strong> Write to a temp file, then rename. This prevents corruption on crash and makes your memory system restart-safe.</span><span data-zh><strong>所有状态使用原子写入。</strong>先写临时文件，然后重命名。这防止崩溃时损坏，使记忆系统重启安全。</span></li>
+      <li><span data-en><strong>Log episodes for every completed task.</strong> Record task type, duration, step count, outcome, and files changed. You don't need to inject this into prompts — it's for offline analysis. Without it, you can't measure whether your memory system is actually improving agent performance.</span><span data-zh><strong>为每个完成的任务记录 episode。</strong>记录任务类型、时长、步骤数、结果和更改的文件。不需要注入到提示词中——它是用于离线分析的。没有它，你无法衡量记忆系统是否真正改善了 Agent 表现。</span></li>
+      <li><span data-en><strong>Keep self-improvement human-driven.</strong> Use episode data to identify failure patterns, but have humans decide what to change. Automated root cause analysis sounds appealing but compounds errors — a 70% accuracy rate on fixes means 30% of changes silently degrade your system.</span><span data-zh><strong>保持自改进由人驱动。</strong>使用 episode 数据识别失败模式，但由人决定改什么。自动化根因分析听起来诱人但会复利错误——修复准确率 70% 意味着 30% 的变更在悄悄降低系统质量。</span></li>
+    </ol>
 
     <div class="article-page-footer">
       <p><span data-en>Written by Ming Zhou · 2025</span><span data-zh>作者：Ming Zhou · 2025</span></p>
