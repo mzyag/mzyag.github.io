@@ -82,4 +82,28 @@ document.addEventListener('DOMContentLoaded', function () {
     }, { threshold: 0.3 });
     sections.forEach(function (s) { sectionObserver.observe(s); });
   }
+
+  // SVG fullscreen viewer — auto-wraps diagram SVGs in article pages
+  var expandIcon = '<svg viewBox="0 0 24 24" fill="none" stroke="#e2e8f0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 00-2 2v3m18 0V5a2 2 0 00-2-2h-3m0 18h3a2 2 0 002-2v-3M3 16v3a2 2 0 002 2h3"/></svg>';
+  document.querySelectorAll('.article-page svg[viewBox]').forEach(function (svg) {
+    var vb = svg.getAttribute('viewBox').split(/\s+/);
+    if (parseInt(vb[2]) < 200) return;
+    var wrap = document.createElement('div');
+    wrap.className = 'svg-fullscreen-wrap';
+    svg.parentNode.insertBefore(wrap, svg);
+    wrap.appendChild(svg);
+    var btn = document.createElement('button');
+    btn.className = 'svg-fullscreen-btn';
+    btn.setAttribute('aria-label', 'Fullscreen');
+    btn.innerHTML = expandIcon;
+    wrap.insertBefore(btn, svg);
+    btn.addEventListener('click', function () {
+      var el = document.fullscreenElement || document.webkitFullscreenElement;
+      if (el === wrap) {
+        (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+      } else {
+        (wrap.requestFullscreen || wrap.webkitRequestFullscreen).call(wrap);
+      }
+    });
+  });
 });

@@ -955,3 +955,64 @@ a.contact-item:hover {
     height: 1px;
   }
 }
+
+/* ── SVG fullscreen viewer ── */
+.svg-fullscreen-wrap {
+  position: relative;
+}
+.svg-fullscreen-btn {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 36px;
+  height: 36px;
+  background: rgba(30, 30, 46, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.2s;
+  z-index: 10;
+  padding: 0;
+}
+.svg-fullscreen-wrap:hover .svg-fullscreen-btn,
+.svg-fullscreen-wrap:focus-within .svg-fullscreen-btn {
+  opacity: 1;
+}
+.svg-fullscreen-btn:hover {
+  background: rgba(59, 130, 246, 0.5);
+  border-color: #3b82f6;
+}
+.svg-fullscreen-btn svg {
+  width: 18px;
+  height: 18px;
+  pointer-events: none;
+}
+.svg-fullscreen-wrap:fullscreen,
+.svg-fullscreen-wrap:-webkit-full-screen {
+  background: #0a0a12;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 48px;
+}
+.svg-fullscreen-wrap:fullscreen > svg,
+.svg-fullscreen-wrap:-webkit-full-screen > svg {
+  max-width: 100%;
+  max-height: 100%;
+  margin: 0 !important;
+}
+.svg-fullscreen-wrap:fullscreen .svg-fullscreen-btn,
+.svg-fullscreen-wrap:-webkit-full-screen .svg-fullscreen-btn {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  opacity: 0.7;
+}
+.svg-fullscreen-wrap:fullscreen .svg-fullscreen-btn:hover,
+.svg-fullscreen-wrap:-webkit-full-screen .svg-fullscreen-btn:hover {
+  opacity: 1;
+}
