@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en" data-lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>From Spec to System: What Happened When the Harness Met Production — Ming Zhou</title>
+  <meta name="description" content="A harness spec designed for one interactive agent broke in three places when an async chatbot tried to follow it. Three-axis risk models, dual-mode confirmation gates, and the 5-round delivery report iteration that followed.">
+  <meta property="og:title" content="From Spec to System: What Happened When the Harness Met Production — Ming Zhou">
+  <meta property="og:description" content="A harness spec designed for one interactive agent broke in three places when an async chatbot tried to follow it. Three-axis risk models, dual-mode confirmation gates, and the 5-round delivery report iteration.">
+  <meta property="og:type" content="article">
+  <meta property="og:url" content="https://mzyag.github.io/writing/from-spec-to-system.html">
+  <meta property="og:locale" content="en_US">
+  <meta property="og:site_name" content="Ming Zhou">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="From Spec to System: What Happened When the Harness Met Production">
+  <meta name="twitter:description" content="A harness spec designed for one interactive agent broke in three places when an async chatbot tried to follow it.">
+  <meta name="author" content="Ming Zhou">
+  <link rel="canonical" href="https://mzyag.github.io/writing/from-spec-to-system.html">
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect fill='%2309090b' width='100' height='100' rx='16'/%3E%3Ctext x='50' y='72' font-family='Inter,sans-serif' font-size='64' font-weight='700' fill='%233b82f6' text-anchor='middle'%3EM%3C/text%3E%3C/svg%3E">
+  <link rel="stylesheet" href="../css/style.css">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "Article",
+    "headline": "From Spec to System: What Happened When the Harness Met Production",
+    "description": "A harness spec designed for one interactive agent broke in three places when an async chatbot tried to follow it. Three-axis risk models, dual-mode confirmation gates, and the 5-round delivery report iteration that followed.",
+    "author": {"@type": "Person", "name": "Ming Zhou", "url": "https://mzyag.github.io/"},
+    "publisher": {"@type": "Person", "name": "Ming Zhou"},
+    "url": "https://mzyag.github.io/writing/from-spec-to-system.html",
+    "datePublished": "2026-05-21"
+  }
+  </script>
+</head>
+<body>
+
+  <nav class="nav scrolled" id="nav">
+    <div class="nav-inner">
+      <a class="nav-logo" href="../">MZ<span class="nav-logo-dot">.</span></a>
+      <div class="nav-links" id="navLinks">
+        <a href="../#projects"><span data-en>Projects</span><span data-zh>项目</span></a>
+        <a href="../#writing"><span data-en>Writing</span><span data-zh>文章</span></a>
+        <a href="../#about"><span data-en>About</span><span data-zh>关于</span></a>
+        <a href="../#contact"><span data-en>Contact</span><span data-zh>联系</span></a>
+        <button class="lang-toggle" id="langToggle" aria-label="Toggle language">
+          <span data-en>中文</span><span data-zh>EN</span>
+        </button>
+      </div>
+      <button class="nav-hamburger" id="navHamburger" aria-label="Menu">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+  </nav>
+
+  <main class="article-page">
+    <a href="../#writing" class="article-page-back">&larr; <span data-en>Back to all writing</span><span data-zh>返回文章列表</span></a>
+
+    <div class="article-page-meta">
+      <span>2026</span>
+      <span><span data-en>14 min read</span><span data-zh>14 分钟阅读</span></span>
+    </div>
+
+    <h1>
+      <span data-en>From Spec to System: What Happened When the Harness Met Production</span>
+      <span data-zh>从规范到系统：Harness 遇上生产环境后发生了什么</span>
+    </h1>
+
+    <p class="article-lead">
+      <span data-en>We had a harness spec that governed how our AI agents classified risk, confirmed with users, and reported deliveries. It worked well — for one agent. Then our Feishu chatbot needed to follow the same spec, and it broke in three places within the first week. The risk model couldn't express what it needed to. The confirmation gates assumed a user who was always present. The episode schemas were silently incompatible. This is the story of fixing those breaks and, more honestly, the five-round template iteration where I kept getting the delivery report wrong before checking what Google, React, and ITIL actually do.</span>
+      <span data-zh>我们有一套治理 AI Agent 的 harness 规范——风险分类、用户确认、交付报告。跑得不错——但只针对一个 Agent。当飞书聊天机器人也需要遵循同一套规范时，第一周就在三个地方崩了。风险模型表达力不够。确认门控假设用户一直在线。Episode schema 静默不兼容。这篇讲的是修复这些断裂的过程，更坦诚地说，也是我在交付报告模板上迭代了五轮——直到不得不停下来去查 Google、React 和 ITIL 到底怎么做的——的过程。</span>
+    </p>
+
+    <h2><span data-en>Two Agents, One Spec, Zero Alignment</span><span data-zh>两个 Agent，一套规范，零对齐</span></h2>
+
+    <p>
+      <span data-en>Some context on what we were running. Agent one: an interactive CLI tool (Claude Code) that runs locally, user sitting right there, confirmation happens inline in the terminal. I described the <a href="engineering-the-harness.html">original harness design</a> and the <a href="memory-architecture.html">memory architecture</a> in earlier posts — five-layer governance, human checkpoints, episode capture for self-improvement. The whole thing assumed real-time interaction.</span>
+      <span data-zh>先说背景。第一个 Agent：交互式 CLI 工具（Claude Code），在本地运行，用户就坐在旁边，确认在终端里内联完成。我在之前的文章里写了<a href="engineering-the-harness.html">最初的 harness 设计</a>和<a href="memory-architecture.html">记忆架构</a>——五层治理、人工检查点、用于自改进的 episode 捕获。整套设计的前提是实时交互。</span>
+    </p>
+
+    <p>
+      <span data-en>Agent two: a Feishu (Lark) chatbot that dispatches tasks to LLM agents via API calls. Someone sends a message at 10 AM, gets a meeting, comes back at 2 PM and expects to find the result. No "same turn." No local filesystem. Every confirmation needs to be a checkpoint that survives process restarts — because the bot runs on a server, and we restart it for deploys.</span>
+      <span data-zh>第二个 Agent：飞书（Lark）聊天机器人，通过 API 调用将任务派发给 LLM Agent。有人上午 10 点发条消息，开个会，下午 2 点回来期望看到结果。没有"同一轮"。没有本地文件系统。每个确认必须是能挺过进程重启的检查点——因为 bot 跑在服务器上，部署时会重启。</span>
+    </p>
+
+    <p>
+      <span data-en>Both needed to follow the same governance spec. In a regulated environment, you can't have two agents classifying risk differently for the same task — the audit trail becomes meaningless if "high risk" means different things depending on which agent processed the request. But the chatbot had evolved its own parallel system over three months: H0 through H6 checkpoints, a one-dimensional <code>low/medium/high</code> risk model, direct JSONL writes for episode capture. Two harnesses, maintained independently, drifting with every commit.</span>
+      <span data-zh>两者都需要遵循同一套治理规范。在受监管的环境里，不能让两个 Agent 对同一任务的风险分类不同——如果"high risk"在不同 Agent 里含义不同，审计追踪就失去了意义。但聊天机器人在三个月里已经进化出了自己的并行体系：H0 到 H6 检查点、一维的 <code>low/medium/high</code> 风险模型、直接往 JSONL 写 episode。两套 harness，各自维护，每次提交都在加大分裂。</span>
+    </p>
+
+    <p>
+      <span data-en>I'd been ignoring the divergence because both agents "worked." What forced the issue was the episode pipeline: we tried to aggregate insights across both agents and discovered that 40% of chatbot episodes were silently dropped during aggregation. Different field names — <code>episode_id</code> vs <code>id</code>, <code>task_scope</code> vs <code>scope</code>. Same concept, schema mismatch, zero errors logged. That's the kind of silent data loss that erodes trust in the whole system.</span>
+      <span data-zh>我一直忽视这个分歧，因为两个 Agent 都"能用"。真正逼我面对的是 episode 管道：我们尝试跨两个 Agent 聚合洞察，发现 40% 的聊天机器人 episode 在聚合时被静默丢弃了。字段名不同——<code>episode_id</code> 对 <code>id</code>，<code>task_scope</code> 对 <code>scope</code>。概念一样，schema 不匹配，零错误日志。这种静默数据丢失会侵蚀对整个系统的信任。</span>
+    </p>
+
+    <h2><span data-en>Risk Classification: From One Dimension to Three</span><span data-zh>风险分类：从一维到三维</span></h2>
+
+    <p>
+      <span data-en>The chatbot's risk model was a single axis: <code>low | medium | high</code>. The LLM dispatcher picked one based on a prompt that said "consider the complexity and risk." Worked fine for about 80% of tasks. The remaining 20% exposed the problem.</span>
+      <span data-zh>聊天机器人的风险模型是单一维度：<code>low | medium | high</code>。LLM dispatcher 根据一句"考虑复杂度和风险"的 prompt 来选择。大约 80% 的任务没问题。剩下的 20% 暴露了问题。</span>
+    </p>
+
+    <p>
+      <span data-en>A concrete case: modifying one config file to update a database connection string. Single file — sounds like low risk. But that config pointed to the production database, and a wrong value would break the live service. A senior engineer on the team flagged it after the chatbot auto-dispatched it without confirmation. One-dimensional risk can't express "small change, high stakes." It forces the dispatcher to pick one signal and drop the other.</span>
+      <span data-zh>一个具体案例：修改一个配置文件更新数据库连接字符串。单个文件——听起来像低风险。但那个配置指向生产数据库，一个错误值会搞垮线上服务。团队里一个高级工程师在聊天机器人未经确认就自动派发后把这个问题提了出来。一维风险无法表达"改动小、风险大"。它迫使 dispatcher 选一个信号、丢掉另一个。</span>
+    </p>
+
+    <p>
+      <span data-en>We replaced it with a three-axis matrix adapted from OWASP LLM06's excessive-agency taxonomy — the same framework we use for production agent governance:</span>
+      <span data-zh>我们用一个三轴矩阵替换了它，改编自 OWASP LLM06 的过度代理分类——和我们用于生产 Agent 治理的框架一致：</span>
+    </p>
+
+    <ul>
+      <li><span data-en><strong>Blast radius</strong> (L0–L2): 1-2 files → multiple modules → cross-project or external APIs</span><span data-zh><strong>影响面</strong>（L0–L2）：1-2 文件 → 多模块 → 跨项目或外部 API</span></li>
+      <li><span data-en><strong>Reversibility</strong> (L0–L2): <code>git revert</code> → DB migration → external API call or production data</span><span data-zh><strong>可逆性</strong>（L0–L2）：<code>git revert</code> → 数据库迁移 → 外部 API 调用或生产数据</span></li>
+      <li><span data-en><strong>Sensitivity</strong> (L0–L2): UI/docs → business logic → auth/payment/PII</span><span data-zh><strong>敏感度</strong>（L0–L2）：UI/文档 → 业务逻辑 → 认证/支付/PII</span></li>
+    </ul>
+
+    <p>
+      <span data-en>Derivation: take the max across all three. All L0 = Routine. Any L1 = Standard. Any L2 = Critical. That config file case? Blast radius L0 (one file), reversibility L1 (revertable but service-impacting), sensitivity L2 (production infrastructure). Max is L2, so Critical — agent must get explicit confirmation. No more guessing.</span>
+      <span data-zh>推导：三个轴取最大值。全 L0 = Routine。任一 L1 = Standard。任一 L2 = Critical。那个配置文件的案例？影响面 L0（一个文件），可逆性 L1（可回滚但影响服务），敏感度 L2（生产基础设施）。最大值 L2，所以是 Critical——Agent 必须获得显式确认。不用再猜了。</span>
+    </p>
+
+    <p>
+      <span data-en>In the chatbot's dispatcher prompt, the output now includes a structured <code>risk_axes</code> object:</span>
+      <span data-zh>在聊天机器人的 dispatcher prompt 中，输出现在包含结构化的 <code>risk_axes</code> 对象：</span>
+    </p>
+
+    <pre><code>{
+  "risk_level": "Critical",
+  "risk_axes": {
+    "blast_radius": "L0",
+    "reversibility": "L1",
+    "sensitivity": "L2"
+  }
+}</code></pre>
+
+    <p>
+      <span data-en>Both agents now produce the same classification for the same task. This matters for audit compliance — when a regulator asks "why was this change executed without review?", you need the answer to be the same regardless of which system processed it.</span>
+      <span data-zh>两个 Agent 现在对同一任务产出相同的分类。这对审计合规很重要——当监管者问"为什么这个变更没有经过审查就执行了？"时，无论哪个系统处理的，答案必须一致。</span>
+    </p>
+
+    <p>
+      <span data-en>The deeper takeaway: <strong>a one-dimensional risk model is a premature compression.</strong> It forces the classifier to make a judgment call that should be deferred to policy. Three independent axes let the harness policy decide what combinations matter — and that policy can evolve without changing the classification model.</span>
+      <span data-zh>更深层的收获：<strong>一维风险模型是过早的信息压缩。</strong>它把本该由策略层做的判断强加给了分类器。三个独立轴让 harness 策略来决定哪些组合重要——策略可以演进而不用改分类模型。</span>
+    </p>
+
+    <h2><span data-en>Confirmation Gates: The Async Blind Spot</span><span data-zh>确认门控：异步盲区</span></h2>
+
+    <p>
+      <span data-en>Original harness: confirmation gates for Critical tasks only. Sound logic for the CLI agent — the user is watching the terminal, can interrupt mid-execution if something looks off. Standard tasks presented a plan and continued unless the user objected. In practice, CLI users objected within seconds when they disagreed.</span>
+      <span data-zh>原始 harness：只对 Critical 任务有确认门控。对 CLI Agent 来说逻辑没问题——用户盯着终端，执行过程中发现不对可以随时中断。Standard 任务展示计划后继续执行，除非用户反对。实际上 CLI 用户不同意时几秒钟内就会打断。</span>
+    </p>
+
+    <p>
+      <span data-en>Then a chatbot user sent "refactor the auth module" and went to lunch. The agent classified it as Standard — business logic is L1 sensitivity — presented the plan in the chat, got no objection (because no one was reading), and started rewriting three files. The user came back to find changes they never intended. Sound familiar? It's the same class of bug I described in the <a href="engineering-the-harness.html">original harness article</a> — the agent doesn't say "are you sure?" — except now the blast radius was bigger because the system <em>assumed</em> silence meant consent.</span>
+      <span data-zh>然后一个聊天机器人用户发了"重构认证模块"就去吃午饭了。Agent 分类为 Standard——业务逻辑是 L1 敏感度——在聊天里展示了计划，没收到反对（因为没人在看），开始改三个文件。用户回来发现了一堆他们从没打算做的改动。听着耳熟？跟我在<a href="engineering-the-harness.html">最初 harness 文章</a>里描述的是同一类 bug——Agent 不会说"你确定吗？"——只是这次影响面更大，因为系统把沉默<em>当成了</em>同意。</span>
+    </p>
+
+    <p>
+      <span data-en>The fix was declaring two execution modes in the spec — Interactive and Async — with confirmation semantics that vary by mode:</span>
+      <span data-zh>修复方法是在规范中声明两种执行模式——Interactive 和 Async——确认语义按模式变化：</span>
+    </p>
+
+    <ul>
+      <li><span data-en><strong>Standard + Interactive:</strong> Present plan, proceed unless the user objects in the same turn. This is what the CLI already did.</span><span data-zh><strong>Standard + Interactive：</strong>展示计划，除非用户在同一轮反对否则继续。CLI 本来就是这样。</span></li>
+      <li><span data-en><strong>Standard + Async:</strong> Present plan, persist state, wait for explicit "confirmed" before touching any files.</span><span data-zh><strong>Standard + Async：</strong>展示计划，持久化状态，等到明确的"确认"再碰任何文件。</span></li>
+      <li><span data-en><strong>Critical (either mode):</strong> Always wait. No "execute all" shortcut — each step needs acknowledgment. The chatbot handler flat-out rejects skip-checkpoint messages at Critical.</span><span data-zh><strong>Critical（无论哪种模式）：</strong>必须等待。没有"全部执行"的捷径——每个步骤都要确认。聊天机器人在 Critical 级别直接拒绝跳过检查点的请求。</span></li>
+    </ul>
+
+    <p>
+      <span data-en>That last point — rejecting "just do it all" for Critical tasks — came from a lesson we'd already learned the hard way. In the earlier harness, we had a fuzzy confirmation matcher that triggered on substrings: <code>if "好" in message</code>. A user once wrote "不好意思我在忙" ("sorry, I'm busy") and the system treated the embedded "好" character as approval. After that incident, every approval gate uses exact-match whitelisting. When you're guarding against irreversible production changes, you err on the side of explicit, not convenient.</span>
+      <span data-zh>最后一点——对 Critical 任务拒绝"全部执行"——来自我们之前踩过的坑。早期 harness 用子字符串做模糊确认匹配：<code>if "好" in message</code>。有个用户写了"不好意思我在忙"，系统把里面的"好"字当成了批准。那次事件之后，所有审批门控都用精确匹配白名单。当你守着不可逆的生产变更时，宁可麻烦一点，也不要图方便。</span>
+    </p>
+
+    <h2><span data-en>Delivery Reports: Five Rounds to Get It Right</span><span data-zh>交付报告：五轮才搞定</span></h2>
+
+    <p>
+      <span data-en>This part is less about systems design and more about me repeatedly getting the requirements wrong. I'm including the full iteration history because I think the pattern — starting from instinct, failing, then finally checking what established systems actually do — is more common than people admit.</span>
+      <span data-zh>这部分与其说是系统设计，不如说是我反复搞错需求。我把完整的迭代历史放在这里，因为我觉得这个模式——从直觉出发、失败、最后才去查成熟系统怎么做——比大多数人愿意承认的要常见得多。</span>
+    </p>
+
+    <p>
+      <span data-en>Neither agent had a structured delivery report. The CLI agent had a loose table with risk level and acceptance results. The chatbot had its own format with different fields. When we unified the harness, we needed a standard template both agents could produce. Seemed straightforward.</span>
+      <span data-zh>两个 Agent 都没有结构化交付报告。CLI Agent 有一个松散的表格包含风险等级和验收结果。聊天机器人有自己的格式、不同的字段。统一 harness 时我们需要一个两个 Agent 都能产出的标准模板。看着挺简单。</span>
+    </p>
+
+    <p>
+      <span data-en><strong>Round 1</strong> — I designed a table with six mandatory fields: risk level, change scope, execution steps, verification results, residual risk, unfinished items. Thorough on paper. In practice, a typo fix now generated a report with four "N/A" rows. The ceremony was absurd for the work.</span>
+      <span data-zh><strong>第 1 轮</strong>——我设计了一个六个必填字段的表格：风险等级、变更范围、执行步骤、验证结果、残余风险、未完成项。纸面上很全面。实际运行中，一个拼写错误修复现在会生成四行"N/A"的报告。仪式感和工作量完全不成比例。</span>
+    </p>
+
+    <p>
+      <span data-en><strong>Round 2</strong> — Feedback said "all workspace tasks should produce a fixed report." So I made all five sections mandatory. Empty? Fill in "none." Result: every small task produced a bloated report. The team started ignoring them entirely — the exact opposite of what we wanted.</span>
+      <span data-zh><strong>第 2 轮</strong>——反馈说"workspace 里面的任务也要有固定的交付报告"。于是我让五个 section 全部必填。空的？填"无"。结果：每个小任务都产出臃肿的报告。团队开始完全无视它们——和我们想要的效果完全相反。</span>
+    </p>
+
+    <p>
+      <span data-en><strong>Round 3</strong> — Pushed further: "Why isn't the template completely fixed?" So I made it rigid — same depth for typo fixes and database migrations. At this point I stopped and asked myself: does <em>any</em> established engineering practice actually recommend uniform-depth documentation regardless of change risk?</span>
+      <span data-zh><strong>第 3 轮</strong>——继续推："交付报告为什么不完全固定？"于是搞成了完全刚性——修复拼写错误和数据库迁移用同样的深度。这时候我停下来问自己：到底有没有<em>任何</em>成熟的工程实践推荐不管变更风险大小都用统一深度的文档？</span>
+    </p>
+
+    <p>
+      <span data-en><strong>Round 4</strong> — I should have done this from the start. I went and studied eight templates that have survived real-world usage at scale:</span>
+      <span data-zh><strong>第 4 轮</strong>——我早该这么做。我去研究了八个经过大规模实际使用检验的模板：</span>
+    </p>
+
+    <ol>
+      <li><span data-en>Claude Code PR template (<code>## Summary</code> + <code>## Test plan</code>)</span><span data-zh>Claude Code PR 模板（<code>## Summary</code> + <code>## Test plan</code>）</span></li>
+      <li><span data-en>Google's CL description guide (what → why → how to verify)</span><span data-zh>Google CL 描述指南（what → why → how to verify）</span></li>
+      <li><span data-en>React PR template (<code>What?</code> → <code>Why?</code> → <code>How did you test?</code>)</span><span data-zh>React PR 模板（<code>What?</code> → <code>Why?</code> → <code>How did you test?</code>）</span></li>
+      <li><span data-en>Next.js PR template (description + test plan)</span><span data-zh>Next.js PR 模板（description + test plan）</span></li>
+      <li><span data-en>Conventional Commits (<code>type(scope): description</code>)</span><span data-zh>Conventional Commits（<code>type(scope): description</code>）</span></li>
+      <li><span data-en>ITIL Change Record (description → risk → verification → back-out plan)</span><span data-zh>ITIL Change Record（description → risk → verification → back-out plan）</span></li>
+      <li><span data-en>TDAD research on agentic development (arXiv 2603.17973)</span><span data-zh>TDAD Agent 开发研究（arXiv 2603.17973）</span></li>
+      <li><span data-en>DORA 2025 findings on documentation overhead vs. delivery speed</span><span data-zh>DORA 2025 关于文档开销与交付速度的研究</span></li>
+    </ol>
+
+    <p>
+      <span data-en>The pattern across all eight was unanimous: <strong>What → Why → How verified.</strong> Three questions. Depth scales with risk. Claude Code wants two sections. Google wants three sentences. ITIL wants six fields with a back-out plan — <em>but only for high-risk changes</em>. Not one of these templates enforces the same depth for a typo fix and a database migration. DORA's research is particularly clear: heavyweight documentation ceremonies slow delivery without improving outcomes. Unread reports provide exactly zero auditability.</span>
+      <span data-zh>八个模板的共同模式非常一致：<strong>What → Why → How verified。</strong>三个问题。深度随风险缩放。Claude Code 要两个 section。Google 要三句话。ITIL 要六个字段加回退计划——<em>但只针对高风险变更</em>。没有一个模板对拼写修复和数据库迁移强制相同深度。DORA 的研究说得特别清楚：重量级文档仪式拖慢交付而不改善结果。没人读的报告提供的可审计性为零。</span>
+    </p>
+
+    <p>
+      <span data-en><strong>Round 5</strong> — the final design. Five sections, depth proportional to risk:</span>
+      <span data-zh><strong>第 5 轮</strong>——最终设计。五个 section，深度与风险成比例：</span>
+    </p>
+
+    <ol>
+      <li><span data-en><strong>Verdict line</strong> — risk level + status + one-sentence conclusion. Always present. Borrowed from Conventional Commits: the subject line tells you whether to read further.</span><span data-zh><strong>结论行</strong>——风险等级 + 状态 + 一句话结论。始终存在。借鉴 Conventional Commits：主题行告诉你要不要继续读。</span></li>
+      <li><span data-en><strong>Summary</strong> — why it was done, what happened. 1–3 bullets. Same as Google CL descriptions and React's <code>What? Why?</code> sections.</span><span data-zh><strong>Summary</strong>——为什么做、做了什么。1-3 个 bullet。和 Google CL 描述、React 的 <code>What? Why?</code> 一样。</span></li>
+      <li><span data-en><strong>Changes</strong> — semantic description per file. Always present. Not just paths — "added token expiry check," not "modified auth.py."</span><span data-zh><strong>Changes</strong>——每个文件的语义描述。始终存在。不只是路径——"添加 token 过期校验"，而不是"修改了 auth.py"。</span></li>
+      <li><span data-en><strong>Verification</strong> — how it was verified and what the results were. Standard and Critical only. Same question as Claude Code's <code>## Test plan</code> and React's <code>How did you test?</code>.</span><span data-zh><strong>Verification</strong>——怎么验证的、结果是什么。仅 Standard 和 Critical。和 Claude Code 的 <code>## Test plan</code>、React 的 <code>How did you test?</code> 是同一个问题。</span></li>
+      <li><span data-en><strong>Issues</strong> — residual risk, unfinished items, rollback command. Critical must include rollback, same as ITIL's back-out plan. Omitted entirely if there's nothing to report.</span><span data-zh><strong>Issues</strong>——残余风险、未完成项、回滚命令。Critical 必须包含回滚，和 ITIL 的 back-out plan 一样。没有就不写。</span></li>
+    </ol>
+
+    <p>
+      <span data-en>A Routine typo fix produces three lines. A Critical database migration produces a full report with rollback instructions and residual risk. Same template, different depth. Nobody writes "N/A" four times for a one-line change anymore.</span>
+      <span data-zh>一个 Routine 级拼写修复产出三行。一个 Critical 级数据库迁移产出完整报告，包含回滚指令和残余风险。同一个模板，不同的深度。不再有人为了一行改动写四遍"N/A"了。</span>
+    </p>
+
+    <p>
+      <span data-en>Looking back, rounds 1–3 were wasted. I was iterating on instinct — "make it thorough," "make it mandatory" — instead of checking what systems that handle millions of changes per year actually settled on. The answer was right there in the Google CL guide, which has governed every change at Google since 2012. Lesson learned: when you're designing a process template, check what survived at scale before designing from scratch.</span>
+      <span data-zh>回头看，第 1-3 轮是白费的。我在凭直觉迭代——"做全面点"、"做成强制的"——而没有去查每年处理数百万变更的系统最终选择了什么。答案就在 Google CL 指南里，那套东西从 2012 年起管着 Google 的每一个变更。教训：设计流程模板时，先看看大规模验证过的实践，再从零开始设计。</span>
+    </p>
+
+    <h2><span data-en>One Spec, Dual Modes</span><span data-zh>一套规范，双模式</span></h2>
+
+    <p>
+      <span data-en>With risk, confirmation, and reporting aligned, we could actually merge. The key realization was simple in hindsight: Interactive and Async aren't different harnesses. They're different <em>modes</em> of the same harness. The gates — G0 (risk classification) through G5 (episode capture) — are identical. Only the confirmation mechanism varies.</span>
+      <span data-zh>风险、确认、报告对齐之后，终于可以合并了。事后看关键认知很简单：Interactive 和 Async 不是不同的 harness。它们是同一个 harness 的不同<em>模式</em>。门控——G0（风险分类）到 G5（episode 捕获）——完全一致。只有确认机制不同。</span>
+    </p>
+
+    <p>
+      <span data-en>Now one spec file governs both agents. The chatbot implements the Async mode of the workspace harness — it doesn't maintain its own gate definitions. When the spec evolves, both agents evolve. We renamed all internal references from the chatbot's old H0–H6 nomenclature to G0–G5, so there's one vocabulary across the codebase.</span>
+      <span data-zh>现在一个规范文件治理两个 Agent。聊天机器人实现 workspace harness 的 Async 模式——不再维护自己的门控定义。规范演进时两个 Agent 一起演进。我们把聊天机器人内部所有旧的 H0–H6 命名统一成了 G0–G5，整个代码库一套词汇表。</span>
+    </p>
+
+    <h2><span data-en>The Memory Pipeline Fix</span><span data-zh>记忆管道修复</span></h2>
+
+    <p>
+      <span data-en>Back to the silent data loss that started this whole effort. The chatbot wrote episodes to JSONL using <code>episode_id</code>, <code>task_scope</code>, <code>task_outcome</code>. The CLI agent's capture pipeline expected <code>id</code>, <code>scope</code>, <code>outcome</code>. The downstream aggregation — extracting insights, compacting old episodes, syncing to the PARA memory system — only spoke the CLI's dialect. 40% of chatbot data was being silently discarded.</span>
+      <span data-zh>回到引发这一切的静默数据丢失问题。聊天机器人往 JSONL 写 episode 用的是 <code>episode_id</code>、<code>task_scope</code>、<code>task_outcome</code>。CLI Agent 的捕获管道期望的是 <code>id</code>、<code>scope</code>、<code>outcome</code>。下游聚合——提取洞察、压缩旧 episode、同步到 PARA 记忆系统——只认 CLI 的方言。聊天机器人 40% 的数据在被悄悄丢弃。</span>
+    </p>
+
+    <p>
+      <span data-en>Instead of adding a translation layer (which just moves the schema problem), we made the chatbot import the CLI's capture function directly. <code>self_improve.capture()</code> handles schema normalization, PII sanitization, and file rotation. One code path, one schema, one downstream pipeline. The harness spec now documents "Alternative Capture Methods" for agents that can't call CLI commands — import the function or write to the canonical schema directly, as long as you use the sanitization utility.</span>
+      <span data-zh>我们没有加翻译层（那只是把 schema 问题换了个地方），而是让聊天机器人直接导入 CLI 的 capture 函数。<code>self_improve.capture()</code> 负责 schema 规范化、PII 脱敏和文件轮转。一条代码路径、一个 schema、一条下游管道。Harness 规范现在记录了"替代捕获方式"，面向无法调用 CLI 命令的 Agent——导入函数或直接写规范 schema，前提是使用脱敏工具。</span>
+    </p>
+
+    <h2><span data-en>What I'd Do Differently</span><span data-zh>如果重来我会怎么做</span></h2>
+
+    <p>
+      <span data-en>Three mistakes, in order of cost:</span>
+      <span data-zh>三个错误，按代价从大到小排：</span>
+    </p>
+
+    <p>
+      <span data-en><strong>Define the schema before building implementations.</strong> We let two agents build their own episode schemas for three months, then had to reconcile them. Schema-first would have caught <code>episode_id</code> vs <code>id</code> before any code was written. This is the same principle as API-first design, and I should have recognized it sooner — we enforce it for our external APIs but didn't think to apply it to internal agent pipelines.</span>
+      <span data-zh><strong>先定义 schema 再建实现。</strong>我们让两个 Agent 各自建了三个月的 episode schema，然后才来调和。Schema-first 会在写代码之前就发现 <code>episode_id</code> 对 <code>id</code> 的问题。这和 API-first 设计是同一个原则，我应该更早意识到——我们对外部 API 强制执行这个原则，但没想到要用在内部 Agent 管道上。</span>
+    </p>
+
+    <p>
+      <span data-en><strong>Design for dual-mode from the start.</strong> The Interactive-only assumption was baked into every confirmation gate. Retrofitting Async mode meant touching all of them. If we'd declared both modes upfront, integrating the chatbot would have been configuration, not redesign.</span>
+      <span data-zh><strong>从一开始就设计双模式。</strong>仅 Interactive 的假设嵌入了每一个确认门控。改造 Async 模式意味着全部要改。如果一开始就声明两种模式，接入聊天机器人就是配置变更，不是重新设计。</span>
+    </p>
+
+    <p>
+      <span data-en><strong>Research before iterating.</strong> The delivery report could have been done in three rounds instead of five. Rounds 1–3 were spent iterating on gut feeling; round 4 was "let me actually check what works at scale." I lost two iterations to the assumption that I could design a good template from first principles. I couldn't. The people who run Google's CL process and ITIL's change management have more data points than I do. Should have started there.</span>
+      <span data-zh><strong>先调研再迭代。</strong>交付报告本可以三轮搞定而不是五轮。第 1-3 轮在凭感觉迭代；第 4 轮才是"让我实际查一下大规模验证过的做法"。我浪费了两轮在"我能从第一性原理设计出好模板"这个假设上。结果不行。管 Google CL 流程和 ITIL 变更管理的人有比我多得多的数据点。应该从那里开始。</span>
+    </p>
+
+    <h2><span data-en>Where It Stands Now</span><span data-zh>现在的状态</span></h2>
+
+    <p>
+      <span data-en>The unified harness has six gates — G0 through G5 — with risk-proportional depth. Routine tasks (all L0) skip planning and formal validation. Standard tasks (any L1) get the full flow. Critical tasks (any L2) get everything plus mandatory human confirmation before execution begins. Both agents implement the same spec, produce the same reports, and feed the same episode pipeline. About 200–300 tasks per week go through the system, split roughly 60/40 between the CLI and chatbot.</span>
+      <span data-zh>统一后的 harness 有六个门控——G0 到 G5——深度与风险成比例。Routine 任务（全 L0）跳过规划和正式验证。Standard 任务（任一 L1）走完整流程。Critical 任务（任一 L2）全套加上执行前的强制人工确认。两个 Agent 实现同一规范，产出同样的报告，输入同一条 episode 管道。每周大约 200-300 个任务经过系统，CLI 和聊天机器人大概六四开。</span>
+    </p>
+
+    <p>
+      <span data-en>If there's one line I'd keep from this whole exercise, it's this: a spec with only one implementation isn't a spec — it's a description of that implementation. You find out what's actually load-bearing when a second system tries to follow the same rules. We didn't design the three-axis risk model or the dual-mode confirmation or the proportional reporting because we had foresight. We designed them because a second agent showed up and the original spec couldn't handle it.</span>
+      <span data-zh>如果让我从这整个过程中只留一句话：只有一个实现的规范不是规范——它是对那个实现的描述。当第二个系统尝试遵循同一套规则时，你才发现什么是真正承重的。我们不是因为有远见才设计了三轴风险模型、双模式确认和比例化报告。是因为第二个 Agent 出现了，原始规范扛不住了。</span>
+    </p>
+
+    <div class="article-page-footer">
+      <p><span data-en>Written by Ming Zhou · 2026</span><span data-zh>作者：Ming Zhou · 2026</span></p>
+      <a href="../#writing" class="article-page-back">&larr; <span data-en>Back to all writing</span><span data-zh>返回文章列表</span></a>
+    </div>
+  </main>
+
+  <script src="../js/main.js"></script>
+</body>
+</html>
