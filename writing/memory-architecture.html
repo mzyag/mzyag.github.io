@@ -153,8 +153,30 @@
     <h2><span data-en>Content Taxonomy: Four Dimensions of Persistent Memory</span><span data-zh>内容分类：持久记忆的四个维度</span></h2>
 
     <p>
-      <span data-en>The three tiers describe <em>when</em> memory lives and dies. But "preferences" as a single category for all long-term memory is too coarse. In production, we found that persistent memories differ not just in lifetime but in <em>what kind of knowledge</em> they encode. We identified four dimensions, each with different storage patterns, update triggers, and retrieval priorities:</span>
-      <span data-zh>三层架构描述了记忆<em>何时</em>生存和消亡。但把所有长期记忆归为"偏好"这个单一类别太粗了。在生产中，我们发现持久记忆的差异不仅在生命周期，还在于它们编码的<em>知识类型</em>。我们识别出四个维度，每个都有不同的存储模式、更新触发和检索优先级：</span>
+      <span data-en>The three tiers describe <em>when</em> memory lives and dies. But "preferences" as a single category for all long-term memory is too coarse. In production, we found that persistent memories differ not just in lifetime but in <em>what kind of knowledge</em> they encode. We identified four dimensions, each with different storage patterns, update triggers, and retrieval priorities.</span>
+      <span data-zh>三层架构描述了记忆<em>何时</em>生存和消亡。但把所有长期记忆归为"偏好"这个单一类别太粗了。在生产中，我们发现持久记忆的差异不仅在生命周期，还在于它们编码的<em>知识类型</em>。我们识别出四个维度，每个都有不同的存储模式、更新触发和检索优先级。</span>
+    </p>
+
+    <p>
+      <span data-en>This isn't a novel insight — it maps to well-established memory models. In cognitive science, Tulving's classification (1972) distinguishes <strong>semantic memory</strong> (facts about the world), <strong>episodic memory</strong> (events and experiences), and <strong>procedural memory</strong> (learned behaviors). In agent systems, MemGPT (Packer et al., NeurIPS 2023) formalizes a split between <strong>core memory</strong> — always loaded, bounded, critical (user profile and agent persona) — and <strong>archival memory</strong> — searched on demand, unbounded. LangChain's LangMem framework uses a similar three-way split: semantic (facts about users), episodic (conversation history), and procedural (learned instructions). Our four dimensions map to these frameworks:</span>
+      <span data-zh>这不是全新的洞察——它映射到成熟的记忆模型。在认知科学中，Tulving 的分类（1972）区分了<strong>语义记忆</strong>（关于世界的事实）、<strong>情景记忆</strong>（事件和经历）和<strong>程序记忆</strong>（习得的行为）。在 Agent 系统中，MemGPT（Packer et al., NeurIPS 2023）形式化了<strong>核心记忆</strong>（始终加载、有界、关键——用户画像和 Agent 人格）与<strong>归档记忆</strong>（按需搜索、无界）的分离。LangChain 的 LangMem 框架使用类似的三分法：语义（关于用户的事实）、情景（对话历史）和程序（习得的指令）。我们的四个维度映射到这些框架：</span>
+    </p>
+
+    <ul>
+      <li><span data-en><strong>User + Reference → Semantic memory.</strong> Facts about the world — who the user is, where resources live. We split these because they have different staleness profiles: a user's role rarely changes; a Notion URL might move.</span><span data-zh><strong>User + Reference → 语义记忆。</strong>关于世界的事实——用户是谁、资源在哪里。我们将它们分开是因为过期特征不同：用户角色很少变化；Notion URL 可能迁移。</span></li>
+      <li><span data-en><strong>Feedback → Procedural memory.</strong> Learned behaviors and instructions — what to do, what not to do, and why. This is the dimension most agent systems under-invest in.</span><span data-zh><strong>Feedback → 程序记忆。</strong>习得的行为和指令——该做什么、不该做什么、以及为什么。这是大多数 Agent 系统投入不足的维度。</span></li>
+      <li><span data-en><strong>Project → Contextual/episodic memory.</strong> Current state of the world — ongoing work, deadlines, decisions. High decay rate, needs active staleness management.</span><span data-zh><strong>Project → 情境/情景记忆。</strong>世界的当前状态——正在进行的工作、截止日期、决策。衰减率高，需要主动的过期管理。</span></li>
+      <li><span data-en><strong>Tier 1 conversation + Tier 3 summaries → Episodic memory.</strong> Already handled by the three-tier architecture above.</span><span data-zh><strong>第一层对话 + 第三层摘要 → 情景记忆。</strong>已由上面的三层架构处理。</span></li>
+    </ul>
+
+    <p>
+      <span data-en>Following MemGPT's core/archival distinction, we further classify the four dimensions into two tiers: <strong>core memory</strong> (Feedback + User) — always injected, compact, high per-token value — and <strong>contextual memory</strong> (Project + Reference) — injected when budget allows, searched by recency and relevance. This isn't just a priority list; it's a design contract. Core memory has a hard size cap (we enforce 200 chars per User record, 500 chars total for Feedback) to guarantee it always fits. Contextual memory is elastic — it fills whatever budget remains.</span>
+      <span data-zh>遵循 MemGPT 的核心/归档区分，我们进一步将四个维度分为两级：<strong>核心记忆</strong>（Feedback + User）——始终注入、紧凑、每 token 价值高——和<strong>情境记忆</strong>（Project + Reference）——预算允许时注入，按时效和相关性搜索。这不只是优先级列表；它是设计契约。核心记忆有硬性大小上限（我们限定每条 User 记录 200 字符、Feedback 总计 500 字符）以保证始终放得下。情境记忆是弹性的——填充剩余预算。</span>
+    </p>
+
+    <p>
+      <span data-en>The four dimensions:</span>
+      <span data-zh>四个维度：</span>
     </p>
 
     <h3><span data-en>Dimension 1: User — Who Am I Talking To?</span><span data-zh>维度一：User — 我在和谁对话？</span></h3>
@@ -203,8 +225,8 @@
     </p>
 
     <p>
-      <span data-en><strong>When to save:</strong> When you learn who is doing what, why, or by when. <strong>Critical rule:</strong> Always convert relative dates to absolute dates when saving. "Next Thursday" becomes "2025-03-20." Otherwise the memory becomes uninterpretable after a week. <strong>Decay rate:</strong> Project memories go stale faster than any other type. A merge freeze from three weeks ago is probably over. The agent should treat project memories as context for what <em>was</em> true, and verify against current state before acting on them.</span>
-      <span data-zh><strong>何时保存：</strong>了解到谁在做什么、为什么、什么时候截止时。<strong>关键规则：</strong>保存时始终将相对日期转换为绝对日期。"下周四"变成"2025-03-20"。否则一周后记忆就无法解读了。<strong>衰减率：</strong>Project 记忆比其他任何类型都更快过期。三周前的合并冻结可能已经结束了。Agent 应将 Project 记忆视为<em>当时</em>为真的上下文，在据此行动前验证当前状态。</span>
+      <span data-en><strong>When to save:</strong> When you learn who is doing what, why, or by when. <strong>Critical rule:</strong> Always convert relative dates to absolute dates when saving. "Next Thursday" becomes "2025-03-20." Otherwise the memory becomes uninterpretable after a week. <strong>Staleness management:</strong> Project memories go stale faster than any other type. A merge freeze from three weeks ago is probably over. We handle this with two mechanisms borrowed from knowledge management practice: a <code>last_verified</code> timestamp that records when the memory was last confirmed still true, and a confidence decay function — memories older than 14 days without re-verification are injected with a staleness warning ("⚠ unverified since {date}"), and memories older than 30 days are demoted below Reference priority. The agent should treat unverified Project memories as context for what <em>was</em> true, not what <em>is</em> true, and check the current state (git log, issue tracker, team chat) before acting on them.</span>
+      <span data-zh><strong>何时保存：</strong>了解到谁在做什么、为什么、什么时候截止时。<strong>关键规则：</strong>保存时始终将相对日期转换为绝对日期。"下周四"变成"2025-03-20"。否则一周后记忆就无法解读了。<strong>过期管理：</strong>Project 记忆比其他任何类型都更快过期。三周前的合并冻结可能已经结束了。我们借鉴知识管理实践，用两个机制处理：一个 <code>last_verified</code> 时间戳记录记忆上次被确认仍然为真的时间，以及一个置信衰减函数——超过 14 天未被重新验证的记忆在注入时附带过期警告（"⚠ 未验证，自 {date} 起"），超过 30 天的记忆被降级到 Reference 优先级以下。Agent 应将未验证的 Project 记忆视为<em>曾经</em>为真的上下文，而非<em>现在</em>为真，并在据此行动前检查当前状态（git log、issue tracker、团队聊天）。</span>
     </p>
 
     <h3><span data-en>Dimension 4: Reference — Where Do I Look?</span><span data-zh>维度四：Reference — 去哪里找？</span></h3>
@@ -231,6 +253,11 @@
       <span data-zh>四个维度给记忆系统提供了结构化元数据，使其能更好地决定注入什么、验证什么、丢弃什么——而不需要在记忆层引入 LLM 推理。</span>
     </p>
 
+    <p>
+      <span data-en>A natural question: why not just use Tulving's three-way split (semantic/episodic/procedural) directly? Because agent memory has operational constraints that cognitive science doesn't address. Semantic memory in cognitive science is one pool; in our system, a user's role and a Grafana URL have radically different injection priorities and staleness profiles — lumping them as "semantic" loses operational signal. Similarly, MemGPT's two-tier model (core/archival) is the right <em>architecture</em>, but it doesn't prescribe what goes in each tier. Our four dimensions are the content classification <em>within</em> MemGPT's framework: User and Feedback are core; Project and Reference are contextual. The research gives us the structural scaffolding. The four dimensions give us the operational semantics to fill it.</span>
+      <span data-zh>一个自然的问题：为什么不直接用 Tulving 的三分法（语义/情景/程序）？因为 Agent 记忆有认知科学不涉及的运维约束。认知科学中语义记忆是一个池；在我们的系统中，用户角色和 Grafana URL 的注入优先级和过期特征截然不同——混为"语义"会丢失运维信号。类似地，MemGPT 的两层模型（核心/归档）是正确的<em>架构</em>，但没有规定每层放什么。我们的四个维度是 MemGPT 框架<em>之内</em>的内容分类：User 和 Feedback 是核心层；Project 和 Reference 是情境层。研究提供结构脚手架。四个维度提供填充它的运维语义。</span>
+    </p>
+
     <h2><span data-en>Budget-Aware Context Injection</span><span data-zh>预算感知的上下文注入</span></h2>
 
     <p>
@@ -239,8 +266,8 @@
     </p>
 
     <p>
-      <span data-en>Default budget: 4000 characters. The assembly priority:</span>
-      <span data-zh>默认预算：4000 字符。组装优先级：</span>
+      <span data-en>Default budget: 4000 characters. The assembly follows the core/contextual split — core memory (Feedback + User) is always included first, contextual memory (Project + Reference) fills the remaining budget:</span>
+      <span data-zh>默认预算：4000 字符。组装遵循核心/情境分层——核心记忆（Feedback + User）始终最先包含，情境记忆（Project + Reference）填充剩余预算：</span>
     </p>
 
     <ol>
@@ -438,7 +465,7 @@
     </p>
 
     <ol>
-      <li><span data-en><strong>Different information, different lifetimes and types.</strong> Don't treat all memory equally. Conversations are ephemeral. Persistent memories are permanent but subdivide into four dimensions (user, feedback, project, reference) with different staleness profiles and retrieval priorities. Summaries are archival. Design storage, eviction, and injection policies accordingly.</span><span data-zh><strong>不同的信息，不同的生命周期和类型。</strong>不要同等对待所有记忆。对话是短暂的。持久记忆是永久的但细分为四个维度（User、Feedback、Project、Reference），具有不同的过期特征和检索优先级。摘要是归档的。相应设计存储、驱逐和注入策略。</span></li>
+      <li><span data-en><strong>Different information, different lifetimes and types.</strong> Don't treat all memory equally. Following MemGPT's core/archival principle: classify persistent memories into <strong>core</strong> (Feedback + User — always injected, hard size cap) and <strong>contextual</strong> (Project + Reference — budget-dependent, staleness-managed). Conversations are ephemeral. Summaries are archival. Design storage, eviction, and injection policies based on the cognitive science insight that semantic, procedural, and episodic memory serve fundamentally different retrieval needs.</span><span data-zh><strong>不同的信息，不同的生命周期和类型。</strong>不要同等对待所有记忆。遵循 MemGPT 的核心/归档原则：将持久记忆分为<strong>核心</strong>（Feedback + User——始终注入、硬性大小上限）和<strong>情境</strong>（Project + Reference——依赖预算、需过期管理）。对话是短暂的。摘要是归档的。基于认知科学的洞察来设计存储、驱逐和注入策略：语义、程序和情景记忆服务于根本不同的检索需求。</span></li>
       <li><span data-en><strong>Budget beats completeness.</strong> It's better to inject 4000 characters of high-priority memory than 20000 characters of everything. The LLM performs worse with bloated context, and you pay for every token. Curate aggressively.</span><span data-zh><strong>预算优于完整性。</strong>注入 4000 字符的高优先级记忆比注入 20000 字符的所有内容更好。LLM 在膨胀的上下文中表现更差，而且你为每个 token 付费。积极策展。</span></li>
       <li><span data-en><strong>Memory is invisible infrastructure.</strong> The LLM should never see memory management commands or tier labels. It receives a context block that looks like a briefing. The machinery is human-side, not model-side.</span><span data-zh><strong>记忆是不可见的基础设施。</strong>LLM 不应该看到记忆管理命令或层级标签。它接收一个看起来像简报的上下文块。机制是人侧的，不是模型侧的。</span></li>
       <li><span data-en><strong>Crash-safe by default.</strong> Every state transition writes to disk atomically. The system can be killed at any point and restart with full memory. This isn't optional for production agents — it's table stakes.</span><span data-zh><strong>默认崩溃安全。</strong>每次状态转换原子写入磁盘。系统可以在任何点被杀死并以完整记忆重启。对于生产 Agent 这不是可选的——这是基本要求。</span></li>
@@ -460,7 +487,7 @@
     <ol>
       <li><span data-en><strong>Separate persistent memory from conversation.</strong> At minimum, extract user preferences ("reply in Chinese," "always use /workspace") into a file that survives session resets. This single change eliminates the most common trust-eroding behavior: the agent forgetting what you already told it.</span><span data-zh><strong>将持久记忆与对话分离。</strong>至少把用户偏好（"用中文回复"、"始终使用 /workspace"）提取到一个会话重置后仍保留的文件中。这个单一变更消除了最常见的信任侵蚀行为：Agent 忘记你已经告诉它的事情。</span></li>
       <li><span data-en><strong>Add session TTL with compression.</strong> When the user is inactive for a threshold period (start with one hour), compress the conversation into a one-paragraph summary before evicting it. This preserves cross-session continuity without carrying stale context.</span><span data-zh><strong>添加带压缩的会话 TTL。</strong>当用户不活跃超过阈值（从一小时开始），在驱逐对话前将其压缩为一段摘要。这在不携带陈旧上下文的情况下保持跨会话连续性。</span></li>
-      <li><span data-en><strong>Classify persistent memories into dimensions.</strong> At minimum, separate user corrections (feedback) from general preferences. Feedback memories encode hard-won lessons — they should always be injected first, before other context. The four-dimension taxonomy (user, feedback, project, reference) can come later.</span><span data-zh><strong>将持久记忆分类为维度。</strong>至少把用户纠正（feedback）和一般偏好分开。Feedback 记忆编码来之不易的教训——它们应该始终最先注入，优先于其他上下文。四维度分类（user、feedback、project、reference）可以后续添加。</span></li>
+      <li><span data-en><strong>Classify persistent memories into core and contextual.</strong> At minimum, separate user corrections (feedback — procedural memory) from general preferences (semantic memory), and guarantee core memories are always injected. Feedback memories encode hard-won lessons and should always come first. The full taxonomy (user, feedback, project, reference) maps to established models: Tulving's semantic/procedural/episodic distinction for content types, MemGPT's core/archival distinction for injection policy.</span><span data-zh><strong>将持久记忆分为核心和情境两级。</strong>至少把用户纠正（feedback——程序记忆）和一般偏好（语义记忆）分开，并保证核心记忆始终被注入。Feedback 记忆编码来之不易的教训，应始终最先注入。完整分类（user、feedback、project、reference）映射到成熟模型：Tulving 的语义/程序/情景区分用于内容类型，MemGPT 的核心/归档区分用于注入策略。</span></li>
       <li><span data-en><strong>Set a context budget and enforce priorities.</strong> Pick a character budget (start with 4000 characters) and fill it in priority order: feedback first, then user profile, then project context, then conversation turns. Never let conversation history crowd out persistent memories.</span><span data-zh><strong>设定上下文预算并执行优先级。</strong>选择一个字符预算（从 4000 字符开始），按优先级填充：先 feedback，然后用户画像，然后项目上下文，最后对话轮次。永远不要让对话历史挤掉持久记忆。</span></li>
       <li><span data-en><strong>Use atomic writes for all state.</strong> Write to a temp file, then rename. This prevents corruption on crash and makes your memory system restart-safe.</span><span data-zh><strong>所有状态使用原子写入。</strong>先写临时文件，然后重命名。这防止崩溃时损坏，使记忆系统重启安全。</span></li>
       <li><span data-en><strong>Log episodes for every completed task.</strong> Record task type, duration, step count, outcome, and files changed. You don't need to inject this into prompts — it's for offline analysis. Without it, you can't measure whether your memory system is actually improving agent performance.</span><span data-zh><strong>为每个完成的任务记录 episode。</strong>记录任务类型、时长、步骤数、结果和更改的文件。不需要注入到提示词中——它是用于离线分析的。没有它，你无法衡量记忆系统是否真正改善了 Agent 表现。</span></li>
