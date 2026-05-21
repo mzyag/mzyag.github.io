@@ -638,6 +638,9 @@ img { max-width: 100%; display: block; }
 }
 
 /* Contact */
+#contact {
+  min-height: calc(100vh - 64px);
+}
 .contact-row {
   display: flex;
   align-items: center;
@@ -737,7 +740,7 @@ a.contact-item:hover {
 .article-page {
   max-width: 680px;
   margin: 0 auto;
-  padding: 120px 24px 80px;
+  padding: 88px 24px 80px;
 }
 .article-page-back {
   display: inline-flex;
