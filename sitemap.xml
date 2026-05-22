@@ -67,6 +67,12 @@
     <priority>0.8</priority>
   </url>
   <url>
+    <loc>https://mzyag.github.io/writing/enforcement-architecture.html</loc>
+    <lastmod>2026-05-22</lastmod>
+    <changefreq>yearly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
     <loc>https://mzyag.github.io/writing/optimizing-agent-knowledge-layer.html</loc>
     <lastmod>2026-05-22</lastmod>
     <changefreq>yearly</changefreq>

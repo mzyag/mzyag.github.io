@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en" data-lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>The Enforcement Gap: Why Agent Governance Needs Infrastructure, Not Just Instructions — Ming Zhou</title>
+  <meta name="description" content="In-context governance rules degrade to 70-90% compliance under context pressure. A three-layer enforcement architecture — advisory, structural, deterministic — and the hook patterns that make governance survive context compaction.">
+  <meta property="og:title" content="The Enforcement Gap: Why Agent Governance Needs Infrastructure, Not Just Instructions — Ming Zhou">
+  <meta property="og:description" content="In-context governance rules degrade to 70-90% compliance under context pressure. A three-layer enforcement architecture — advisory, structural, deterministic — and the hook patterns that make governance survive context compaction.">
+  <meta property="og:type" content="article">
+  <meta property="og:url" content="https://mzyag.github.io/writing/enforcement-architecture.html">
+  <meta property="og:locale" content="en_US">
+  <meta property="og:site_name" content="Ming Zhou">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="The Enforcement Gap: Why Agent Governance Needs Infrastructure, Not Just Instructions">
+  <meta name="twitter:description" content="In-context governance rules degrade to 70-90% compliance under context pressure. A three-layer enforcement architecture — advisory, structural, deterministic — and the hook patterns that make governance survive context compaction.">
+  <meta name="author" content="Ming Zhou">
+  <link rel="canonical" href="https://mzyag.github.io/writing/enforcement-architecture.html">
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect fill='%2309090b' width='100' height='100' rx='16'/%3E%3Ctext x='50' y='72' font-family='Inter,sans-serif' font-size='64' font-weight='700' fill='%233b82f6' text-anchor='middle'%3EM%3C/text%3E%3C/svg%3E">
+  <link rel="stylesheet" href="../css/style.css">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "Article",
+    "headline": "The Enforcement Gap: Why Agent Governance Needs Infrastructure, Not Just Instructions",
+    "description": "In-context governance rules degrade to 70-90% compliance under context pressure. A three-layer enforcement architecture — advisory, structural, deterministic — and the hook patterns that make governance survive context compaction.",
+    "author": {"@type": "Person", "name": "Ming Zhou", "url": "https://mzyag.github.io/"},
+    "publisher": {"@type": "Person", "name": "Ming Zhou"},
+    "url": "https://mzyag.github.io/writing/enforcement-architecture.html",
+    "datePublished": "2026-05-22"
+  }
+  </script>
+</head>
+<body>
+
+  <nav class="nav scrolled" id="nav">
+    <div class="nav-inner">
+      <a class="nav-logo" href="../">MZ<span class="nav-logo-dot">.</span></a>
+      <div class="nav-links" id="navLinks">
+        <a href="../#projects"><span data-en>Projects</span><span data-zh>项目</span></a>
+        <a href="../#writing"><span data-en>Writing</span><span data-zh>文章</span></a>
+        <a href="../#about"><span data-en>About</span><span data-zh>关于</span></a>
+        <a href="../#contact"><span data-en>Contact</span><span data-zh>联系</span></a>
+        <button class="lang-toggle" id="langToggle" aria-label="Toggle language">
+          <span data-en>中文</span><span data-zh>EN</span>
+        </button>
+      </div>
+      <button class="nav-hamburger" id="navHamburger" aria-label="Menu">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+  </nav>
+
+  <main class="article-page">
+    <a href="../#writing" class="article-page-back">&larr; <span data-en>Back to all writing</span><span data-zh>返回文章列表</span></a>
+
+    <div class="article-page-meta">
+      <span>2026</span>
+      <span><span data-en>13 min read</span><span data-zh>13 分钟阅读</span></span>
+    </div>
+
+    <h1>
+      <span data-en>The Enforcement Gap: Why Agent Governance Needs Infrastructure, Not Just Instructions</span>
+      <span data-zh>执行缺口：为什么 Agent 治理需要基础设施而非仅靠指令</span>
+    </h1>
+
+    <p class="article-lead">
+      <span data-en>If you've written governance rules for an LLM-based agent — risk classification before execution, scope confirmation, human-in-the-loop gates — you've probably assumed that putting these rules in the system prompt or a project instruction file is enough. The agent reads the rules, the agent follows the rules. Except it doesn't. Not always, not reliably, and especially not after the context window compresses. We discovered this the hard way: our agent followed its governance harness perfectly for 150+ messages, then silently skipped every gate after a single context compaction event. This article covers what went wrong, the three-layer enforcement model we built to fix it, and the hook architecture that makes governance survive the context window's self-erasure.</span>
+      <span data-zh>如果你为基于 LLM 的 Agent 写过治理规则——执行前风险分类、范围确认、人机交互门控——你可能假设把这些规则放在系统提示或项目指令文件里就够了。Agent 读到规则，Agent 遵循规则。但事实并非如此。不是每次都能，不可靠，尤其在上下文窗口压缩之后。我们痛苦地发现了这一点：Agent 完美遵循治理 harness 超过 150 条消息，然后在一次上下文压缩事件后，静默跳过了每一个门控。本文讲的是出了什么问题、我们构建的三层执行模型如何修复它，以及让治理在上下文窗口自擦除中存活下来的 hook 架构。</span>
+    </p>
+
+    <h2><span data-en>The Compliance Illusion</span><span data-zh>合规幻觉</span></h2>
+
+    <p>
+      <span data-en>Our agent governance harness has six gates. G0 classifies task risk on three axes (blast radius, reversibility, sensitivity). G1 declares scope and plan. The risk level determines which gates are mandatory — routine tasks skip planning, standard tasks get the full flow, critical tasks require explicit human confirmation before execution. All of this was written as in-context instructions: "Before executing ANY non-chat task, you MUST start at G0 Risk Classification."</span>
+      <span data-zh>我们的 Agent 治理 harness 有六个门控。G0 在三个维度分类任务风险（影响范围、可逆性、敏感度）。G1 声明范围和计划。风险级别决定哪些门控是强制的——常规任务跳过计划，标准任务走完整流程，关键任务需要人类在执行前明确确认。所有这些都写成了上下文内指令："在执行任何非聊天任务之前，你必须从 G0 风险分类开始。"</span>
+    </p>
+
+    <p>
+      <span data-en>For weeks, it worked. The agent classified risk, declared scope, confirmed with the user, executed, validated, and delivered structured reports. Compliance felt like 100%. Then we ran a long optimization session — the kind where you're iterating on a blog post, fixing a title, updating a sitemap, committing, pushing, discovering more issues, fixing those too. Around message 160, the model's context compaction triggered. The conversation history got summarized. And on the very next task, the agent jumped straight to execution. No G0. No G1. No risk classification. It had forgotten the governance rules existed.</span>
+      <span data-zh>几周内一切正常。Agent 分类风险、声明范围、与用户确认、执行、验证、交付结构化报告。合规率感觉是 100%。然后我们运行了一次长时间优化会话——那种你在迭代博客文章、修标题、更新 sitemap、提交、推送、发现更多问题、继续修的会话。大约在第 160 条消息时，模型的上下文压缩触发了。对话历史被总结。在下一个任务中，Agent 直接跳到了执行。没有 G0。没有 G1。没有风险分类。它忘记了治理规则的存在。</span>
+    </p>
+
+    <h2><span data-en>What Context Compaction Does to Rules</span><span data-zh>上下文压缩对规则做了什么</span></h2>
+
+    <p>
+      <span data-en>Context compaction is how long-context models stay within their context window. When the conversation grows too long, older messages get summarized — compressed into a shorter representation that preserves the gist but loses detail. This is a necessary mechanism. Without it, conversations would hard-fail at the context limit.</span>
+      <span data-zh>上下文压缩是长上下文模型保持在上下文窗口内的方式。当对话变得太长，较早的消息被总结——压缩为更短的表示，保留要点但丢失细节。这是一个必要机制。没有它，对话会在上下文上限处硬失败。</span>
+    </p>
+
+    <p>
+      <span data-en>The problem: governance rules are detail. "Classify risk on three axes" is a procedural instruction that depends on its full specification to be actionable. When the summarizer compresses this into something like "the agent follows a governance harness with multiple gates," the agent retains the fact that governance exists but loses the ability to execute it. It's like knowing you have a checklist without knowing what's on it.</span>
+      <span data-zh>问题是：治理规则就是细节。"在三个维度分类风险"是一条程序性指令，依赖其完整规范才能执行。当总结器将其压缩为"Agent 遵循一个有多个门控的治理 harness"时，Agent 保留了治理存在的事实，但丧失了执行的能力。就像知道自己有一张清单但不知道清单上写了什么。</span>
+    </p>
+
+    <p>
+      <span data-en>Tokita (2026) documented the same pattern: "AI follows safety instructions perfectly across 150 messages, then silently ignores them after context compaction." This isn't a model bug. It's an architectural property of how in-context instructions interact with context management. The context window is both the vehicle for your rules and the mechanism that compresses them away.</span>
+      <span data-zh>Tokita（2026）记录了同样的模式："AI 在 150 条消息内完美遵循安全指令，然后在上下文压缩后静默忽略。"这不是模型 bug。这是上下文内指令与上下文管理交互的架构属性。上下文窗口既是你规则的载体，也是压缩它们的机制。</span>
+    </p>
+
+    <h2><span data-en>Measuring the Gap</span><span data-zh>度量缺口</span></h2>
+
+    <p>
+      <span data-en>Anthropic's 2026 agentic coding report draws a sharp line between two enforcement categories. <strong>Advisory</strong>: rules that exist as text in the context — system prompts, instruction files, conversation history. Compliance: 70-90% under normal conditions, degrading further under context pressure (long conversations, compaction, task switching). <strong>Deterministic</strong>: rules enforced by external mechanisms — hooks, middleware, API-level checks, file system permissions. Compliance: 100%, because the enforcement doesn't depend on the model remembering or choosing to follow the rule.</span>
+      <span data-zh>Anthropic 2026 agentic coding 报告在两个执行类别之间画了一条清晰的线。<strong>建议性</strong>：作为上下文中文本存在的规则——系统提示、指令文件、对话历史。合规率：正常条件下 70-90%，在上下文压力下（长对话、压缩、任务切换）进一步退化。<strong>确定性</strong>：由外部机制执行的规则——hooks、中间件、API 级检查、文件系统权限。合规率：100%，因为执行不依赖模型记住或选择遵循规则。</span>
+    </p>
+
+    <p>
+      <span data-en>The VibeGuard framework (arXiv 2604.01052) makes the same argument from a security perspective: "security gates as infrastructure, not as advice." OWASP LLM06 (Excessive Agency) catalogs the failure modes when agents operate without deterministic guardrails — and every failure mode traces back to the same root cause: the agent was told what not to do, but nothing prevented it from doing it anyway.</span>
+      <span data-zh>VibeGuard 框架（arXiv 2604.01052）从安全角度提出同样的论点："安全门控即基础设施，而非建议"。OWASP LLM06（过度代理权）编目了 Agent 在没有确定性护栏下运行的失败模式——每个失败模式都追溯到同一根因：Agent 被告知不该做什么，但没有任何东西阻止它这样做。</span>
+    </p>
+
+    <p>
+      <span data-en>Our own data matched: across 47 sessions over three weeks, advisory-only governance had ~82% observed compliance. The 18% gap wasn't random — it clustered around context compaction events, long multi-task sessions, and task switches where the agent's attention was pulled from process to problem-solving. The gap was invisible until we specifically audited for it, because the agent's outputs looked correct. It was doing the right thing without following the right process.</span>
+      <span data-zh>我们自己的数据吻合：三周内 47 个会话中，仅靠建议性治理的观测合规率约为 82%。那 18% 的缺口不是随机的——它聚集在上下文压缩事件、长时间多任务会话、以及 Agent 的注意力从流程被拉到问题解决的任务切换周围。缺口是不可见的，直到我们专门审计它，因为 Agent 的输出看起来是正确的。它在做对的事，但没有遵循对的流程。</span>
+    </p>
+
+    <h2><span data-en>Three Layers of Enforcement</span><span data-zh>三层执行架构</span></h2>
+
+    <p>
+      <span data-en>The fix isn't to replace advisory rules with deterministic ones everywhere. That would be over-engineering — most rules don't need external enforcement. Instead, we built a three-layer model where each rule gets enforcement proportional to its failure cost:</span>
+      <span data-zh>修复不是到处用确定性规则替换建议性规则。那是过度工程——大多数规则不需要外部执行。相反，我们构建了一个三层模型，每条规则获得与其失败成本成正比的执行：</span>
+    </p>
+
+    <p>
+      <span data-en><strong>Layer 1: Advisory.</strong> Rules in the system prompt, project instruction files, and conversation context. Sufficient for: coding style preferences, documentation conventions, response format guidelines. These are rules where violation is cosmetic or easily caught by the user. If the agent forgets to use bullet points in a report, nobody gets hurt. Advisory compliance at 70-90% is acceptable for this tier because the cost of a miss is low and the fix is trivial.</span>
+      <span data-zh><strong>第一层：建议性。</strong>系统提示、项目指令文件和对话上下文中的规则。适用于：编码风格偏好、文档规范、回复格式指南。这些规则的违反是表面性的或用户容易发现的。如果 Agent 忘记在报告中使用列表符号，没有人受伤。建议性合规率 70-90% 对这一层级是可接受的，因为遗漏的成本低，修复也简单。</span>
+    </p>
+
+    <p>
+      <span data-en><strong>Layer 2: Structural.</strong> Constraints embedded in the system's architecture — file permissions, metadata schemas, access control fields, directory conventions. Sufficient for: preventing unauthorized writes to curated knowledge, enforcing data schemas, maintaining separation of concerns between project types. In our system, memory files carry an <code>access: readonly</code> or <code>readwrite</code> metadata field. The agent checks this at planning time. It's still advisory in the sense that the agent chooses to check, but the constraint is encoded in the data rather than in a prompt — making it more durable across context changes.</span>
+      <span data-zh><strong>第二层：结构性。</strong>嵌入系统架构中的约束——文件权限、元数据 schema、访问控制字段、目录规范。适用于：防止对策展知识的未授权写入、强制数据 schema、维护项目类型之间的关注点分离。在我们的系统中，记忆文件携带 <code>access: readonly</code> 或 <code>readwrite</code> 元数据字段。Agent 在规划阶段检查它。它在 Agent 选择检查的意义上仍然是建议性的，但约束编码在数据中而非提示中——使其在上下文变化中更持久。</span>
+    </p>
+
+    <p>
+      <span data-en><strong>Layer 3: Deterministic.</strong> Enforcement that runs outside the model's context window entirely — hooks that fire on every prompt submission, middleware that validates before tool execution, external checks that gate deployment. The model doesn't need to remember these rules because it doesn't enforce them. Something else does. This is the layer for rules where a single miss has compounding consequences: governance gates that, if skipped, mean the agent operates unchecked; security boundaries that, if crossed, expose sensitive data; confirmation gates that, if bypassed, execute irreversible actions.</span>
+      <span data-zh><strong>第三层：确定性。</strong>完全在模型上下文窗口之外运行的执行——每次提示提交时触发的 hooks、工具执行前验证的中间件、门控部署的外部检查。模型不需要记住这些规则因为它不执行它们。别的东西执行。这是适用于单次遗漏会产生复合后果的规则的层级：如果跳过意味着 Agent 不受检查地运行的治理门控；如果越界会暴露敏感数据的安全边界；如果绕过会执行不可逆操作的确认门控。</span>
+    </p>
+
+    <h2><span data-en>The Hook Architecture Pattern</span><span data-zh>Hook 架构模式</span></h2>
+
+    <p>
+      <span data-en>The deterministic layer needs a mechanism to inject governance context into every conversation turn without relying on the model's memory. In our system, this works through the <code>UserPromptSubmit</code> hook — an event that fires before the model processes each user message. The hook is a shell script that receives the conversation state as JSON on stdin, decides whether governance context is needed, and outputs additional context that gets injected into the model's view of the current turn.</span>
+      <span data-zh>确定性层需要一种机制，在不依赖模型记忆的情况下将治理上下文注入每个对话轮次。在我们的系统中，这通过 <code>UserPromptSubmit</code> hook 实现——一个在模型处理每条用户消息之前触发的事件。Hook 是一个 shell 脚本，从 stdin 接收对话状态的 JSON，决定是否需要治理上下文，并输出额外的上下文注入到模型对当前轮次的视图中。</span>
+    </p>
+
+    <p>
+      <span data-en>The pattern has three parts:</span>
+      <span data-zh>这个模式有三个部分：</span>
+    </p>
+
+    <ol>
+      <li><span data-en><strong>Scope guard.</strong> The hook checks whether the current working directory falls under the governed workspace. If the user is working in an unrelated directory, the hook exits silently — no governance injection, no overhead. This prevents over-gating: governance rules apply where they should, not everywhere.</span><span data-zh><strong>作用域守卫。</strong>Hook 检查当前工作目录是否在受治理的工作区下。如果用户在无关目录工作，hook 静默退出——不注入治理、无开销。这防止了过度门控：治理规则在应该的地方应用，而非到处应用。</span></li>
+      <li><span data-en><strong>Context injection.</strong> When in scope, the hook outputs a JSON object with an <code>additionalContext</code> field containing the governance reminder. This context appears as a system-level message in the model's view — it's not part of the conversation history, so it can't be summarized away by compaction. It's injected fresh on every single turn.</span><span data-zh><strong>上下文注入。</strong>在作用域内时，hook 输出一个包含 <code>additionalContext</code> 字段的 JSON 对象，其中包含治理提醒。这个上下文作为系统级消息出现在模型的视图中——它不是对话历史的一部分，因此不会被压缩总结掉。它在每一个轮次都被新鲜注入。</span></li>
+      <li><span data-en><strong>Agent judgment.</strong> The hook fires unconditionally on every prompt, but the agent decides whether the current turn is a task (governance applies) or a chat-only turn (exempt). This keeps the deterministic/advisory split clean: the infrastructure guarantees the reminder is present; the model applies judgment about whether it's relevant.</span><span data-zh><strong>Agent 判断。</strong>Hook 在每个提示上无条件触发，但 Agent 决定当前轮次是任务（治理适用）还是纯聊天轮次（豁免）。这保持了确定性/建议性的分离清晰：基础设施保证提醒存在；模型对是否相关施加判断。</span></li>
+    </ol>
+
+    <p>
+      <span data-en>The implementation is minimal — under 15 lines of shell script. It reads the working directory from stdin JSON, checks if it matches the governed path, and outputs the governance context. No state management, no database, no service to keep running. The simplicity is the point: enforcement infrastructure that's complex enough to fail defeats its own purpose.</span>
+      <span data-zh>实现是最小化的——不到 15 行 shell 脚本。它从 stdin JSON 读取工作目录，检查是否匹配受治理路径，输出治理上下文。没有状态管理、没有数据库、没有需要持续运行的服务。简单就是重点：复杂到可能失败的执行基础设施会打败自己的目的。</span>
+    </p>
+
+    <h2><span data-en>The Marker File Bridge</span><span data-zh>标记文件桥接</span></h2>
+
+    <p>
+      <span data-en>Some governance events span two hook triggers. Context compaction fires a <code>PostCompact</code> event, but that event can't inject context into the next user turn — it fires after the compaction, not before the next prompt. The next governance-relevant moment is the <code>UserPromptSubmit</code> event. To bridge these two events, we use a marker file: the PostCompact hook writes a file to a known path; the UserPromptSubmit hook reads it, injects the appropriate re-entry context, and deletes the marker.</span>
+      <span data-zh>有些治理事件跨越两个 hook 触发点。上下文压缩触发一个 <code>PostCompact</code> 事件，但该事件无法向下一个用户轮次注入上下文——它在压缩之后触发，而非在下一个提示之前。下一个治理相关的时刻是 <code>UserPromptSubmit</code> 事件。为了桥接这两个事件，我们使用标记文件：PostCompact hook 向已知路径写入文件；UserPromptSubmit hook 读取它，注入适当的重入上下文，然后删除标记。</span>
+    </p>
+
+    <p>
+      <span data-en>This is the same pattern distributed systems use for event bridging when two components can't communicate directly: write to a shared location, read from it later, clean up after consumption. The marker file is an artifact of the hook system's event model, not a design choice we'd make in a green-field system. But it works reliably, and reliability matters more than elegance in enforcement infrastructure.</span>
+      <span data-zh>这和分布式系统中两个组件无法直接通信时的事件桥接模式相同：写入共享位置，稍后读取，消费后清理。标记文件是 hook 系统事件模型的产物，不是我们在全新系统中会做的设计选择。但它工作可靠，而在执行基础设施中，可靠性比优雅更重要。</span>
+    </p>
+
+    <h2><span data-en>Risk-Proportional Enforcement</span><span data-zh>风险比例执行</span></h2>
+
+    <p>
+      <span data-en>The temptation after discovering the enforcement gap is to make everything deterministic. Resist it. Cooper's Stage-Gate methodology (2001) showed that heavy governance on every task kills throughput without improving outcomes. Google SRE's Dickerson hierarchy puts the same idea differently: you don't page an engineer for every anomaly, only the ones that cross severity thresholds. ITIL's change management tiers routine changes differently from standard and emergency changes.</span>
+      <span data-zh>发现执行缺口后的诱惑是让一切都变成确定性的。抵制它。Cooper 的 Stage-Gate 方法论（2001）表明对每个任务施加重型治理会杀死吞吐量但不改善结果。Google SRE 的 Dickerson 层级用不同的方式表达同样的想法：你不会为每个异常呼叫工程师，只为超过严重性阈值的那些。ITIL 的变更管理将常规变更、标准变更和紧急变更分层处理。</span>
+    </p>
+
+    <p>
+      <span data-en>The principle transfers directly to agent governance. Our three risk levels determine enforcement depth:</span>
+      <span data-zh>这个原则直接迁移到 Agent 治理。我们的三个风险级别决定执行深度：</span>
+    </p>
+
+    <ul>
+      <li><span data-en><strong>Routine</strong> (all risk axes at L0): Advisory enforcement is sufficient. The deterministic hook injects the G0 reminder, but the agent correctly self-classifies and takes the fast path — classify risk, execute, deliver a one-line report. No planning gate, no validation gate, no feedback collection. A typo fix doesn't need the same governance as a database migration.</span><span data-zh><strong>常规</strong>（所有风险维度在 L0）：建议性执行足够。确定性 hook 注入 G0 提醒，但 Agent 正确自分类并走快速路径——分类风险、执行、交付一行报告。不需要规划门控、验证门控或反馈收集。修个错别字不需要和数据库迁移相同的治理。</span></li>
+      <li><span data-en><strong>Standard</strong> (any axis at L1): Full advisory flow, with the deterministic hook ensuring G0 declaration happens. The agent declares risk, presents a scope and plan, executes with inline verification, validates, delivers a structured report. The hook doesn't enforce each gate — it ensures the entry point is reached. Advisory rules handle the rest because the cost of a mid-flow miss is recoverable.</span><span data-zh><strong>标准</strong>（任一维度在 L1）：完整的建议性流程，确定性 hook 确保 G0 声明发生。Agent 声明风险、呈现范围和计划、带内联验证地执行、验证、交付结构化报告。Hook 不执行每个门控——它确保入口点被到达。建议性规则处理其余部分，因为流程中间遗漏的成本是可恢复的。</span></li>
+      <li><span data-en><strong>Critical</strong> (any axis at L2): Deterministic enforcement at the entry point plus structural enforcement at key decision points. The agent must get explicit human confirmation before execution. This is the only level where "wait for the user to say yes" is mandatory rather than recommended.</span><span data-zh><strong>关键</strong>（任一维度在 L2）：入口点的确定性执行加上关键决策点的结构性执行。Agent 必须在执行前获得人类的明确确认。这是唯一一个"等用户说是"是强制而非推荐的级别。</span></li>
+    </ul>
+
+    <p>
+      <span data-en>Eight authoritative sources — OWASP, VibeGuard, Cooper Stage-Gate, ITIL, Google SRE, Anthropic 2026, ETHOS (arXiv 2412.17114), and Claude Code's own auto-mode design — all converge on the same conclusion: proportional governance outperforms uniform governance. The question isn't "should we enforce?" but "at what level should we enforce each rule?"</span>
+      <span data-zh>八个权威来源——OWASP、VibeGuard、Cooper Stage-Gate、ITIL、Google SRE、Anthropic 2026、ETHOS（arXiv 2412.17114）和 Claude Code 自己的自动模式设计——全部收敛到同一个结论：比例治理优于统一治理。问题不是"我们是否应该执行"而是"我们应该在什么级别执行每条规则"。</span>
+    </p>
+
+    <h2><span data-en>The Self-Modification Boundary</span><span data-zh>自修改边界</span></h2>
+
+    <p>
+      <span data-en>An unexpected architectural constraint turned out to be a feature. When we tried to have the agent register its own governance hooks — writing to the settings file that controls hook configuration — the system blocked it. The agent cannot modify its own enforcement infrastructure. This is a hard security boundary, not a soft preference.</span>
+      <span data-zh>一个意外的架构约束原来是一个特性。当我们尝试让 Agent 注册自己的治理 hooks——写入控制 hook 配置的设置文件——系统阻止了它。Agent 无法修改自己的执行基础设施。这是一个硬安全边界，不是软偏好。</span>
+    </p>
+
+    <p>
+      <span data-en>This is correct. An agent that can disable its own governance has no governance. The separation is the same principle as in operating systems: user-space processes don't modify kernel-space security policies. The human sets up the enforcement infrastructure; the agent operates within it. Any architecture where the governed entity can modify the governance mechanism is security theater.</span>
+      <span data-zh>这是正确的。一个能禁用自己治理的 Agent 就没有治理。这个分离和操作系统中的原则相同：用户空间进程不修改内核空间安全策略。人类设置执行基础设施；Agent 在其中运行。任何被治理实体可以修改治理机制的架构都是安全戏剧。</span>
+    </p>
+
+    <p>
+      <span data-en>The practical implication: setting up the deterministic enforcement layer requires a one-time human action. The agent can create the hook script (it's just a shell file), but registering it — adding it to the configuration that determines what runs on every prompt — must be done by the human operator. This is a feature of the architecture, not a limitation. It means no amount of context drift, prompt injection, or confused agent reasoning can disable governance.</span>
+      <span data-zh>实际含义：设置确定性执行层需要一次性的人类操作。Agent 可以创建 hook 脚本（它只是一个 shell 文件），但注册它——将其添加到决定每个提示运行什么的配置中——必须由人类操作者完成。这是架构的特性，不是限制。它意味着无论多少上下文漂移、提示注入或混乱的 Agent 推理都无法禁用治理。</span>
+    </p>
+
+    <h2><span data-en>When Advisory Rules Are the Right Choice</span><span data-zh>建议性规则何时是正确选择</span></h2>
+
+    <p>
+      <span data-en>Not every governance rule should be deterministic. Moving a rule from advisory to deterministic adds operational complexity: a script to maintain, a configuration to manage, a failure mode to handle (what if the hook itself fails?). The decision framework:</span>
+      <span data-zh>不是每条治理规则都应该是确定性的。将规则从建议性移到确定性会增加运维复杂度：一个需要维护的脚本、一个需要管理的配置、一个需要处理的失败模式（如果 hook 本身失败怎么办？）。决策框架：</span>
+    </p>
+
+    <ul>
+      <li><span data-en><strong>Keep advisory</strong> when: the rule is about quality rather than safety, violation is immediately visible to the user, the fix is trivial, and the rule is stable (won't need frequent updates). Example: "deliver reports in this format" — if the agent forgets, the user notices and corrects.</span><span data-zh><strong>保持建议性</strong>，当：规则关于质量而非安全，违反对用户立即可见，修复简单，规则稳定（不需要频繁更新）。例子："以这种格式交付报告"——如果 Agent 忘记，用户会注意到并纠正。</span></li>
+      <li><span data-en><strong>Use structural</strong> when: the constraint can be encoded in metadata, schemas, or file permissions. Example: <code>access: readonly</code> on curated knowledge files — the agent checks the field at planning time, and the constraint survives context changes because it's in the data, not in the prompt.</span><span data-zh><strong>使用结构性</strong>，当：约束可以编码在元数据、schema 或文件权限中。例子：在策展知识文件上标记 <code>access: readonly</code>——Agent 在规划时检查该字段，约束在上下文变化中存活因为它在数据中而非提示中。</span></li>
+      <li><span data-en><strong>Use deterministic</strong> when: violation is invisible until it causes downstream damage, the rule is a gateway to other rules (if this one is skipped, everything downstream is skipped), or the rule enforces a security or safety boundary. Example: G0 risk classification — if skipped, no other governance gate fires.</span><span data-zh><strong>使用确定性</strong>，当：违反在造成下游损害前不可见，规则是其他规则的入口（如果这条被跳过，下游全部被跳过），或规则执行安全边界。例子：G0 风险分类——如果跳过，其他治理门控都不会触发。</span></li>
+    </ul>
+
+    <h2><span data-en>Results</span><span data-zh>结果</span></h2>
+
+    <p>
+      <span data-en>After deploying the three-layer enforcement architecture:</span>
+      <span data-zh>部署三层执行架构后：</span>
+    </p>
+
+    <ul>
+      <li><span data-en><strong>G0 compliance:</strong> 82% (advisory only) &rarr; 100% (with deterministic hook). Zero gate-amnesia incidents since deployment. The hook has fired on every turn in the governed workspace without a single miss across 200+ prompts.</span><span data-zh><strong>G0 合规率：</strong>82%（仅建议性）→ 100%（加确定性 hook）。部署以来零门控失忆事件。Hook 在受治理工作区的每个轮次都触发，200 多个提示中无一遗漏。</span></li>
+      <li><span data-en><strong>Downstream gate compliance:</strong> With G0 deterministically enforced, the advisory compliance of downstream gates (G1-G5) improved from ~78% to ~95%. The entry gate acts as an anchor — once the agent enters the governance flow, it tends to complete it. The remaining 5% gap is in G4.1 feedback collection, which is optional by design.</span><span data-zh><strong>下游门控合规率：</strong>G0 被确定性执行后，下游门控（G1-G5）的建议性合规率从约 78% 提升到约 95%。入口门控充当了锚点——一旦 Agent 进入治理流程，它倾向于完成它。剩余 5% 的缺口在 G4.1 反馈收集上，该步骤设计上就是可选的。</span></li>
+      <li><span data-en><strong>Overhead:</strong> Hook execution adds ~50ms per prompt. Undetectable by the user. The hook script is 12 lines, the configuration is 8 lines of JSON. Total infrastructure cost: one file and one config entry.</span><span data-zh><strong>开销：</strong>Hook 执行每个提示增加约 50ms。用户不可感知。Hook 脚本 12 行，配置 8 行 JSON。总基础设施成本：一个文件和一个配置条目。</span></li>
+      <li><span data-en><strong>False positive rate:</strong> Zero. The hook injects context on every turn, including chat-only turns. But the agent correctly identifies chat-only turns as exempt — the governance context is present but the agent exercises judgment. No user has reported unnecessary governance ceremony on simple questions.</span><span data-zh><strong>误报率：</strong>零。Hook 在每个轮次注入上下文，包括纯聊天轮次。但 Agent 正确地将纯聊天轮次识别为豁免——治理上下文存在但 Agent 施加判断。没有用户报告简单问题上出现不必要的治理流程。</span></li>
+    </ul>
+
+    <h2><span data-en>What We Haven't Solved</span><span data-zh>尚未解决的问题</span></h2>
+
+    <p>
+      <span data-en><strong>Mid-flow enforcement.</strong> Our deterministic layer enforces the entry point (G0) but not the downstream gates (G1-G5). If the agent enters the governance flow but skips G3 validation or delivers a free-form report instead of the G4 template, we rely on advisory compliance. Making every gate deterministic would require a state machine that tracks which gate the agent is currently in — possible but significantly more complex than the current single-hook approach. The ~95% downstream compliance is acceptable for now, but we're watching for decay.</span>
+      <span data-zh><strong>流程中间执行。</strong>我们的确定性层执行入口点（G0）但不执行下游门控（G1-G5）。如果 Agent 进入治理流程但跳过 G3 验证或用自由格式报告替代 G4 模板，我们依赖建议性合规。让每个门控都确定性需要一个状态机来追踪 Agent 当前在哪个门控——可能但比当前单 hook 方案复杂得多。约 95% 的下游合规率目前可接受，但我们在观察是否衰退。</span>
+    </p>
+
+    <p>
+      <span data-en><strong>Cross-session persistence.</strong> The deterministic hook resets every session — it has no memory of what happened in previous conversations. If the user starts a new session mid-task, the agent gets the G0 reminder but has no context about the ongoing task from the previous session. Session continuity still depends on advisory mechanisms (memory files, episode history). A deterministic session-bridging mechanism would require a persistent state store, which adds the kind of complexity we're trying to avoid.</span>
+      <span data-zh><strong>跨会话持久性。</strong>确定性 hook 每个会话重置——它不记得之前对话中发生了什么。如果用户在任务中间开始新会话，Agent 收到 G0 提醒但没有关于前一个会话中进行中任务的上下文。会话连续性仍然依赖建议性机制（记忆文件、episode 历史）。确定性的会话桥接机制需要持久化状态存储，这增加了我们试图避免的复杂性。</span>
+    </p>
+
+    <p>
+      <span data-en><strong>Hook failure handling.</strong> If the hook script crashes (malformed JSON, shell error, timeout), the system falls back to allowing the prompt without governance context. This is the right default — a broken enforcement mechanism shouldn't block all work. But it means a corrupted hook silently degrades to advisory-only mode. We don't yet have monitoring that alerts when the hook fails. For now, we notice because the governance reminder stops appearing in the agent's output.</span>
+      <span data-zh><strong>Hook 失败处理。</strong>如果 hook 脚本崩溃（JSON 格式错误、shell 错误、超时），系统回退到允许提示通过但不带治理上下文。这是正确的默认行为——损坏的执行机制不应阻止所有工作。但这意味着损坏的 hook 静默降级到仅建议性模式。我们还没有在 hook 失败时发出警报的监控。目前我们是通过治理提醒停止出现在 Agent 输出中来注意到的。</span>
+    </p>
+
+    <h2><span data-en>Checklist: Agent Governance Enforcement</span><span data-zh>清单：Agent 治理执行</span></h2>
+
+    <p>
+      <span data-en>If you're building or maintaining governance rules for an LLM-based agent system, here's a prioritized checklist:</span>
+      <span data-zh>如果你在为基于 LLM 的 Agent 系统构建或维护治理规则，以下是按优先级排列的清单：</span>
+    </p>
+
+    <ol>
+      <li><span data-en><strong>Audit advisory compliance under context pressure.</strong> Run a session long enough to trigger compaction (typically 150+ messages). Does the agent still follow governance rules afterward? If you haven't tested this, you don't know your actual compliance rate — you know your best-case compliance rate.</span><span data-zh><strong>审计上下文压力下的建议性合规率。</strong>运行一个足够长的会话以触发压缩（通常 150 条以上消息）。之后 Agent 还遵循治理规则吗？如果你没有测试过这一点，你不知道你的实际合规率——你知道的是最佳情况合规率。</span></li>
+      <li><span data-en><strong>Identify your gateway rules.</strong> Which rules, if skipped, cause all downstream governance to collapse? These are your candidates for deterministic enforcement. In most systems, it's a small number — often just the entry-point classifier.</span><span data-zh><strong>识别你的入口规则。</strong>哪些规则如果被跳过，会导致所有下游治理崩溃？这些是你确定性执行的候选。在大多数系统中，数量很少——通常只是入口点分类器。</span></li>
+      <li><span data-en><strong>Classify every rule into advisory, structural, or deterministic.</strong> The decision: what's the cost of a single miss? Cosmetic &rarr; advisory. Data integrity &rarr; structural. Invisible downstream cascade &rarr; deterministic.</span><span data-zh><strong>将每条规则分类为建议性、结构性或确定性。</strong>决策标准：单次遗漏的成本是什么？表面性 → 建议性。数据完整性 → 结构性。不可见的下游级联 → 确定性。</span></li>
+      <li><span data-en><strong>Implement deterministic enforcement as simply as possible.</strong> A 12-line shell script that injects context is better than a 500-line state machine that tracks every gate. Start with the entry point. Add complexity only when monitoring shows downstream compliance is insufficient.</span><span data-zh><strong>尽可能简单地实现确定性执行。</strong>一个注入上下文的 12 行 shell 脚本比一个跟踪每个门控的 500 行状态机更好。从入口点开始。仅在监控显示下游合规率不够时增加复杂度。</span></li>
+      <li><span data-en><strong>Enforce the self-modification boundary.</strong> The agent must not be able to disable its own governance. If the agent can modify the hook configuration, write to the enforcement script, or alter the settings file, the deterministic layer is advisory in disguise.</span><span data-zh><strong>执行自修改边界。</strong>Agent 不能有禁用自己治理的能力。如果 Agent 可以修改 hook 配置、写入执行脚本或更改设置文件，确定性层就是伪装的建议性层。</span></li>
+      <li><span data-en><strong>Keep proportional.</strong> Not every rule needs a hook. Not every violation needs a block. The goal is governance that's strong enough to catch invisible failures and light enough that routine tasks aren't buried in ceremony. If fixing a typo triggers the same governance as deploying to production, your system is miscalibrated.</span><span data-zh><strong>保持比例性。</strong>不是每条规则都需要 hook。不是每个违反都需要阻止。目标是治理足够强大以捕获不可见失败，又足够轻量使常规任务不被仪式淹没。如果修个错别字和部署到生产触发相同的治理，你的系统就是校准错误的。</span></li>
+      <li><span data-en><strong>Monitor for degradation.</strong> Advisory compliance decays over time, especially as context grows and tasks diversify. Periodically audit whether the agent is actually following governance rules — not just whether its outputs look correct. "Right answer, wrong process" is the silent failure mode that deterministic enforcement exists to catch.</span><span data-zh><strong>监控退化。</strong>建议性合规率随时间衰退，尤其当上下文增长和任务多样化时。定期审计 Agent 是否真的在遵循治理规则——而不仅仅是输出看起来正确。"正确的答案，错误的流程"是确定性执行存在就是为了捕获的静默失败模式。</span></li>
+    </ol>
+
+    <blockquote>
+      <span data-en>The deepest lesson isn't about hooks or context windows. It's about where trust should live in an agent system. Advisory rules trust the model to remember and comply. Deterministic enforcement trusts the infrastructure. The right architecture doesn't choose one over the other — it assigns each rule to the layer that matches its failure cost. The rules that matter most should depend least on the model's memory.</span>
+      <span data-zh>最深层的教训不是关于 hooks 或上下文窗口。而是关于信任应该在 Agent 系统中的哪个位置。建议性规则信任模型记住并遵从。确定性执行信任基础设施。正确的架构不是选择其一——而是将每条规则分配到与其失败成本匹配的层级。最重要的规则应该最少依赖模型的记忆。</span>
+    </blockquote>
+
+    <div class="article-page-footer">
+      <p><span data-en>Written by Ming Zhou · 2026</span><span data-zh>作者：Ming Zhou · 2026</span></p>
+      <a href="../#writing" class="article-page-back">&larr; <span data-en>Back to all writing</span><span data-zh>返回文章列表</span></a>
+    </div>
+  </main>
+
+  <script src="../js/main.js"></script>
+</body>
+</html>
