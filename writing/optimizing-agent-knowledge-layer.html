@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="en" data-lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>When Agent Knowledge Drifts: Maintaining Instructions and Memory at Scale — Ming Zhou</title>
+  <meta name="description" content="Agent skill definitions and episodic memory both degrade over time. Here's what actually breaks, what to do about it, and the governance failure mode that context compaction creates.">
+  <meta property="og:title" content="When Agent Knowledge Drifts: Maintaining Instructions and Memory at Scale — Ming Zhou">
+  <meta property="og:description" content="Agent skill definitions and episodic memory both degrade over time. Here's what actually breaks, what to do about it, and the governance failure mode that context compaction creates.">
+  <meta property="og:type" content="article">
+  <meta property="og:url" content="https://mzyag.github.io/writing/optimizing-agent-knowledge-layer.html">
+  <meta property="og:locale" content="en_US">
+  <meta property="og:site_name" content="Ming Zhou">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="When Agent Knowledge Drifts: Maintaining Instructions and Memory at Scale">
+  <meta name="twitter:description" content="Agent skill definitions and episodic memory both degrade over time. Here's what actually breaks, what to do about it, and the governance failure mode that context compaction creates.">
+  <meta name="author" content="Ming Zhou">
+  <link rel="canonical" href="https://mzyag.github.io/writing/optimizing-agent-knowledge-layer.html">
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect fill='%2309090b' width='100' height='100' rx='16'/%3E%3Ctext x='50' y='72' font-family='Inter,sans-serif' font-size='64' font-weight='700' fill='%233b82f6' text-anchor='middle'%3EM%3C/text%3E%3C/svg%3E">
+  <link rel="stylesheet" href="../css/style.css">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "Article",
+    "headline": "When Agent Knowledge Drifts: Maintaining Instructions and Memory at Scale",
+    "description": "Agent skill definitions and episodic memory both degrade over time. Here's what actually breaks, what to do about it, and the governance failure mode that context compaction creates.",
+    "author": {"@type": "Person", "name": "Ming Zhou", "url": "https://mzyag.github.io/"},
+    "publisher": {"@type": "Person", "name": "Ming Zhou"},
+    "url": "https://mzyag.github.io/writing/optimizing-agent-knowledge-layer.html",
+    "datePublished": "2026-05-22"
+  }
+  </script>
+</head>
+<body>
+
+  <nav class="nav scrolled" id="nav">
+    <div class="nav-inner">
+      <a class="nav-logo" href="../">MZ<span class="nav-logo-dot">.</span></a>
+      <div class="nav-links" id="navLinks">
+        <a href="../#projects"><span data-en>Projects</span><span data-zh>项目</span></a>
+        <a href="../#writing"><span data-en>Writing</span><span data-zh>文章</span></a>
+        <a href="../#about"><span data-en>About</span><span data-zh>关于</span></a>
+        <a href="../#contact"><span data-en>Contact</span><span data-zh>联系</span></a>
+        <button class="lang-toggle" id="langToggle" aria-label="Toggle language">
+          <span data-en>中文</span><span data-zh>EN</span>
+        </button>
+      </div>
+      <button class="nav-hamburger" id="navHamburger" aria-label="Menu">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+  </nav>
+
+  <main class="article-page">
+    <a href="../#writing" class="article-page-back">&larr; <span data-en>Back to all writing</span><span data-zh>返回文章列表</span></a>
+
+    <div class="article-page-meta">
+      <span>2026</span>
+      <span><span data-en>14 min read</span><span data-zh>14 分钟阅读</span></span>
+    </div>
+
+    <h1>
+      <span data-en>When Agent Knowledge Drifts: Maintaining Instructions and Memory at Scale</span>
+      <span data-zh>当 Agent 知识漂移时：大规模维护指令与记忆</span>
+    </h1>
+
+    <p class="article-lead">
+      <span data-en>If you maintain a production agent system long enough, two things will happen. Your skill definitions — the instruction files that tell the agent how to perform tasks — will bloat. And your episodic memory — the accumulated record of what the agent learned from past tasks — will become a noisy log that buries real patterns under redundant entries. Both degrade the same way: slowly, silently, one well-intentioned addition at a time. This article covers what actually breaks, an evidence-based approach to fixing it, and a governance failure mode we discovered along the way that we hadn't seen documented anywhere else.</span>
+      <span data-zh>如果你维护一个生产级 Agent 系统足够长时间，两件事一定会发生。你的技能定义——告诉 Agent 如何执行任务的指令文件——会膨胀。你的情景记忆——Agent 从过往任务中积累的学习记录——会变成一个嘈杂的日志，用冗余条目掩埋真正的模式。两者以同样的方式退化：缓慢地、无声地、每次都是出于好意的一次添加。本文讲的是什么真的会坏掉、一个基于证据的修复方法，以及我们沿途发现的一个治理层的失败模式——我们在其他地方还没见过相关记录。</span>
+    </p>
+
+    <h2><span data-en>The Instruction Bloat Problem</span><span data-zh>指令膨胀问题</span></h2>
+
+    <p>
+      <span data-en>A skill definition is a structured instruction file that tells an agent how to perform a specific task — writing a document, generating a PDF, auditing security, automating a browser. Think of it as a function signature where the function is an LLM and the signature is natural language.</span>
+      <span data-zh>技能定义是一个结构化指令文件，告诉 Agent 如何执行特定任务——写文档、生成 PDF、审计安全、自动化浏览器。可以把它理解为一个函数签名，只是"函数"是 LLM，"签名"是自然语言。</span>
+    </p>
+
+    <p>
+      <span data-en>Over months of operation, these files drift. What starts as 30 clean lines for a security audit skill bloats to 200+ lines of changelog entries, marketing copy ("Best-in-class detection!"), duplicate examples, and rules like "be thorough" — which tells the model nothing it can act on. In our system, 26 out of 101 skills had crossed the 200-line threshold. Total instruction volume had grown to ~9,500 lines. Every token of bloat competes for attention in the model's context window.</span>
+      <span data-zh>经过数月运行，这些文件会漂移。一个安全审计技能最初只有 30 行清晰定义，膨胀到 200 多行的更新日志、营销文案（"业界一流的检测！"）、重复示例，以及"要全面"这种模型无法执行的规则。在我们的系统里，101 个技能中有 26 个超过了 200 行。总指令量增长到约 9,500 行。每个膨胀的 token 都在和真正重要的指令争夺模型的上下文注意力。</span>
+    </p>
+
+    <p>
+      <span data-en>Research from the TDAD (Task-Decomposed Agent Design) framework quantifies the cost: compressing a skill from 107 to 20 lines produced a 4x improvement in agent interpretation accuracy. Anthropic's own guidance says: "Target under 200 lines. For each line, ask: would removing this cause mistakes? If not, cut it." Less, if it's the right less, is dramatically more.</span>
+      <span data-zh>TDAD（Task-Decomposed Agent Design）框架的研究量化了代价：将技能从 107 行压缩到 20 行，Agent 解释准确度提升 4 倍。Anthropic 官方建议："目标 200 行以内。对每一行问：删掉会导致错误吗？不会就删。"更少，只要是正确的少，就是显著的多。</span>
+    </p>
+
+    <h2><span data-en>Compression: The Mechanical Pass</span><span data-zh>压缩：机械的第一遍</span></h2>
+
+    <p>
+      <span data-en>The first pass is straightforward. For each bloated skill, apply a decision tree:</span>
+      <span data-zh>第一遍很直接。对每个膨胀的技能应用一棵决策树：</span>
+    </p>
+
+    <ul>
+      <li><span data-en><strong>Delete:</strong> marketing copy, changelogs, tables of contents, file trees the model can generate with <code>ls</code>, tutorials for things it already knows, generic tips ("be careful").</span><span data-zh><strong>删除：</strong>营销文案、更新日志、目录、模型用 <code>ls</code> 就能生成的文件树、它已经知道的事项的教程、泛用建议（"要小心"）。</span></li>
+      <li><span data-en><strong>Keep:</strong> declarative "must/never/always" rules, CLI signatures with exact flags, hard constraints, schemas, integration contracts, score thresholds — anything where removal would cause a wrong action.</span><span data-zh><strong>保留：</strong>声明性的"必须/禁止/总是"规则、带精确 flag 的 CLI 签名、硬约束、schema、集成契约、评分阈值——任何删掉会导致错误行为的东西。</span></li>
+      <li><span data-en><strong>Extract to references:</strong> worked examples, domain knowledge encyclopedias, code recipe catalogs. The skill file keeps a one-line pointer; the agent reads the reference file only when it needs the detail.</span><span data-zh><strong>提取到引用文件：</strong>完整示例、领域知识百科、代码配方目录。技能文件只保留一行指针；Agent 需要细节时才读引用文件。</span></li>
+      <li><span data-en><strong>Compress:</strong> multi-step procedures become verb lists ("capture &rarr; aggregate &rarr; gate &rarr; promote"); per-label narratives become tables.</span><span data-zh><strong>压缩：</strong>多步流程变成动词清单（"捕获 → 聚合 → 门控 → 提升"）；逐标签叙述变成表格。</span></li>
+    </ul>
+
+    <p>
+      <span data-en>This is mechanical work. No judgment calls about whether a rule is good — just whether it's actionable. Our 26 worst offenders went from ~5,000 lines to ~1,800. Total across all 101 skills: 9,500 down to 6,430. A 32% reduction with zero loss of actionable constraints.</span>
+      <span data-zh>这是机械工作。不判断规则好不好——只判断能不能执行。26 个最严重的从约 5,000 行压到约 1,800 行。101 个技能总计：9,500 降到 6,430。减少 32%，可执行约束零损失。</span>
+    </p>
+
+    <h2><span data-en>Evidence Injection: Why "Be Thorough" Is Not a Rule</span><span data-zh>证据注入：为什么"要全面"不是规则</span></h2>
+
+    <p>
+      <span data-en>Compression removes noise, but many remaining rules are still vibes. "Don't stack too much information in one paragraph" — why not? How much is too much? What's the mechanism? The model reading this has no way to calibrate. The instruction is unfalsifiable.</span>
+      <span data-zh>压缩去掉了噪音，但很多留下的规则仍然是"凭感觉"。"一段里不要堆太多信息"——为什么？多少算太多？机制是什么？模型读到这条指令时没法校准。指令不可证伪。</span>
+    </p>
+
+    <p>
+      <span data-en>Compare: "Working memory limit is ~4 chunks (Cowan 2001, revising Miller's 7&plusmn;2). More than 3 new concepts per paragraph triggers cognitive overload (Sweller, Cognitive Load Theory, 1988). Space new information across scenes rather than clustering — the spacing effect (Willingham 2009) improves retention."</span>
+      <span data-zh>对比："工作记忆上限约 4 个信息块（Cowan 2001，修正了 Miller 的 7±2）。每段超过 3 个新概念会触发认知过载（Sweller，认知负荷理论，1988）。新信息应分散到多个场景——间隔效应（Willingham 2009）提升留存。"</span>
+    </p>
+
+    <p>
+      <span data-en>Same rule. But now the model knows the threshold (3 concepts), the mechanism (working memory), and the remediation (space across scenes). The citation isn't decorative — it converts a vague heuristic into an actionable constraint with a named boundary condition.</span>
+      <span data-zh>同一条规则。但现在模型知道了阈值（3 个概念）、机制（工作记忆）和补救方法（分散到场景中）。引用不是装饰——它把模糊启发式转化为有边界条件的可执行约束。</span>
+    </p>
+
+    <p>
+      <span data-en>The same pattern works everywhere. "Make the ending strong" becomes "each chapter must end with a higher failure cost than it started with (McKee, progressive complications)." "Check for security issues" becomes "detect tainted data flow from source to sink, flag strings with Shannon entropy >4.5 bits/char (OWASP A03, NIST SI-10)." The act of searching for a source forces you to articulate the mechanism and the boundary. That's the real value — the citation is just the proof that you did the work.</span>
+      <span data-zh>"结尾要有力"变成"每章结束时的失败代价必须高于开始时（McKee，递进复杂化）"。"检查安全问题"变成"检测从源到汇的污点数据流，标记 Shannon 熵 >4.5 bits/char 的字符串（OWASP A03, NIST SI-10）"。寻找来源这个动作迫使你阐明机制和边界。这才是真正的价值——引用只是你做了这个工作的证明。</span>
+    </p>
+
+    <h2><span data-en>Matching Source Types to Skill Types</span><span data-zh>让来源类型匹配技能类型</span></h2>
+
+    <p>
+      <span data-en>Not all skills benefit from the same kind of source. Across 101 skills, a natural taxonomy emerged:</span>
+      <span data-zh>不同技能需要不同类型的来源。在 101 个技能中，一个自然的分类法浮现出来：</span>
+    </p>
+
+    <p>
+      <span data-en><strong>Standards and specifications</strong> work for skills that manipulate structured formats or enforce compliance. ISO/IEC 29500 (OOXML) gave a document editing skill 10 precise rules about tracked changes and cross-platform compatibility, replacing "be careful with XML." WCAG 2.1 AA gave a frontend design skill concrete contrast ratios (4.5:1 for normal text) instead of "make sure it's readable."</span>
+      <span data-zh><strong>标准与规范</strong>适用于操作结构化格式或执行合规检查的技能。ISO/IEC 29500（OOXML）为文档编辑技能提供了 10 条关于跟踪修改和跨平台兼容性的精确规则，替代了"小心处理 XML"。WCAG 2.1 AA 给前端设计技能提供了具体对比度比值（正文 4.5:1），而不是"确保可读"。</span>
+    </p>
+
+    <p>
+      <span data-en><strong>Academic research</strong> works for skills that model cognitive processes. Sweller's Cognitive Load Theory gave an information density checker concrete thresholds. Ericsson's Deliberate Practice shaped the constraints of a self-improving agent's learning loop. These translate directly into "no more than N items per section" or "require M episodes before promoting a rule."</span>
+      <span data-zh><strong>学术研究</strong>适用于模拟认知过程的技能。Sweller 的认知负荷理论为信息密度检查器提供了具体阈值。Ericsson 的刻意练习塑造了自改进 Agent 学习循环的约束。这些直接转化为"每节不超过 N 项"或"需要 M 个 episode 才能提升一条规则"。</span>
+    </p>
+
+    <p>
+      <span data-en><strong>Craft theory</strong> works for creative skills. McKee's "Story" gave pacing skills the concept of progressive complications and scene value turns. Swain's Scene-Sequel structure became the backbone of a chapter writer. Craft theory works because it names specific failure modes ("flat pacing" = "no value turn in this scene") rather than aspirational goals ("make it compelling").</span>
+      <span data-zh><strong>创作理论</strong>适用于创意类技能。McKee 的"Story"为节奏技能提供了"递进复杂化"和"场景价值翻转"概念。Swain 的 Scene-Sequel 结构成为章节写作器的骨架。创作理论有效因为它命名了具体失败模式（"节奏平坦"="场景没有价值翻转"），而不是理想化目标。</span>
+    </p>
+
+    <p>
+      <span data-en><strong>Industry best practices</strong> work for engineering and operations skills. Google SRE's Four Golden Signals anchored a web monitoring skill. DORA metrics from "Accelerate" gave a project orchestrator concrete benchmarks. Playwright's official locator hierarchy replaced ad-hoc selector advice with a documented priority chain.</span>
+      <span data-zh><strong>行业最佳实践</strong>适用于工程运维类技能。Google SRE 的四大黄金信号锚定了网页监控技能。"Accelerate"的 DORA 指标为项目编排器提供了具体基准。Playwright 官方的定位器优先级链替代了临时性的选择器建议。</span>
+    </p>
+
+    <p>
+      <span data-en><strong>Platform documentation</strong> works for platform-specific skills. Android's AccessibilityService API gave a mobile automation skill precise guidance on node tree traversal versus coordinate clicking. Apple's Accessibility Programming Guide did the same for macOS automation.</span>
+      <span data-zh><strong>平台文档</strong>适用于平台专属技能。Android 的 AccessibilityService API 为移动端自动化技能提供了节点树遍历 vs 坐标点击的精确指导。Apple 的无障碍编程指南为 macOS 自动化做了同样的事。</span>
+    </p>
+
+    <h2><span data-en>Where Sources Don't Help</span><span data-zh>来源不适用的场景</span></h2>
+
+    <p>
+      <span data-en>38 out of 101 skills had no applicable external source. This was an accurate signal about those skills' nature, not a failure. They fell into clean categories: CLI wrappers (the source is the tool's own <code>--help</code>), API aggregators (value is in the endpoint list, not theory), pipeline nodes under 20 lines (instruction is already maximally compressed), and company-specific operational workflows (the authority is the team's decision, not an external standard).</span>
+      <span data-zh>101 个技能中 38 个没有适用的外部来源。这是关于这些技能本质的准确信号，不是失败。它们归入清晰的类别：CLI 封装器（来源是工具自己的 <code>--help</code>）、API 聚合器（价值在端点列表而非理论）、20 行以下的微型流水线节点（已经最大程度压缩）、以及团队内部操作流程（权威来源是团队的决策而非外部标准）。</span>
+    </p>
+
+    <p>
+      <span data-en>Knowing where NOT to add sources matters. Forcing a citation onto a 15-line pipeline node that says "track which chapter each item last appeared in" is cargo-culting evidence, not using it.</span>
+      <span data-zh>知道在哪里不该加来源很重要。往一个 15 行的流水线节点——"追踪每个物品最后出现在哪一章"——上强加引用，是货物崇拜证据而非使用证据。</span>
+    </p>
+
+    <h2><span data-en>The Memory Side: When Episodes Become Noise</span><span data-zh>记忆侧：当 Episode 变成噪音</span></h2>
+
+    <p>
+      <span data-en>Skills tell the agent what to do. Memory tells it what happened. If you've built any kind of episodic memory — the agent records a one-line summary after each completed task, and loads that history into context for future tasks — you've probably noticed the same drift pattern. After a few hundred tasks, the history file becomes a wall of text where real patterns are buried under redundant entries.</span>
+      <span data-zh>技能告诉 Agent 该怎么做。记忆告诉它发生过什么。如果你搭建了任何形式的情景记忆——Agent 每完成一个任务记录一行摘要，未来任务加载这段历史——你可能已经注意到同样的漂移模式。几百个任务之后，历史文件变成一面文字墙，真正的模式被冗余条目掩埋。</span>
+    </p>
+
+    <p>
+      <span data-en>In our case: one project had accumulated 209 episodes. Maybe 15 of them were variations of "adjust UI spacing" — each with a slightly different lesson that amounted to the same principle. The agent was reading 200+ lines of chronological history to extract maybe 10 rules that actually mattered. That's an appalling signal-to-noise ratio for context window budget.</span>
+      <span data-zh>我们的情况：一个项目积累了 209 个 episode。其中大概 15 个是"调整 UI 间距"的变体——每个总结出略有不同的教训，归结起来其实是同一个原则。Agent 要读 200 多行按时间排列的历史，才能提取出也许 10 条真正有用的规则。对于上下文窗口预算来说，这个信噪比惨不忍睹。</span>
+    </p>
+
+    <h2><span data-en>Archiving by Recurrence, Not by Age</span><span data-zh>按复现频率归档，而非按时间</span></h2>
+
+    <p>
+      <span data-en>The instinct is to archive by date — keep the last N episodes, drop the rest. But that throws away lessons from early episodes that are still valid, and keeps recent episodes that might be noise. A better signal: recurrence.</span>
+      <span data-zh>本能的做法是按日期归档——保留最近 N 个 episode，丢掉其他。但这会丢弃早期仍然有效的教训，保留可能只是噪音的近期 episode。更好的信号是：复现频率。</span>
+    </p>
+
+    <p>
+      <span data-en>Ebbinghaus's forgetting curve (1885) tells us ~56% of information is lost within an hour without reinforcement. The flip side: information that keeps showing up is worth keeping. If a lesson appears 3+ times across episodes, it's a real pattern — distill it into a project-level rule. If it appeared once, archive it (not delete — move to a separate file the agent searches only when explicitly needed).</span>
+      <span data-zh>艾宾浩斯的遗忘曲线（1885）告诉我们，没有强化的信息一小时内丢失约 56%。反过来：反复出现的信息值得保留。如果一个教训在 episode 中出现 3 次以上，它是真实模式——提炼为项目级规则。如果只出现过一次，归档（不是删除——移到一个 Agent 只在明确需要时才搜索的独立文件）。</span>
+    </p>
+
+    <p>
+      <span data-en>That 209-episode project compressed to 9 distilled rules (70 lines of active knowledge) plus a 191-line archive. The agent now loads high-signal project knowledge instead of a chronological dump. Across 12 projects, the pattern held consistently: distilled rules captured 90%+ of useful knowledge in under 20% of the lines.</span>
+      <span data-zh>那个 209 episode 的项目压缩为 9 条提炼规则（70 行活跃知识）加上一个 191 行的归档。Agent 现在加载的是高信噪比的项目知识，而不是时间线流水账。在 12 个项目中，这个模式一致成立：提炼规则用不到 20% 的行数捕获了 90% 以上的有用知识。</span>
+    </p>
+
+    <h2><span data-en>Async Consolidation: Let the System Dream</span><span data-zh>异步整合：让系统做梦</span></h2>
+
+    <p>
+      <span data-en>One-time compaction fixes the current state but doesn't prevent re-accumulation. Episodes keep flowing in. You need a process that periodically replays recent episodes, finds recurring patterns, deduplicates, and checks consistency — essentially what human sleep does for memory.</span>
+      <span data-zh>一次性压缩修复了当前状态但无法防止再次积累。Episode 持续流入。你需要一个流程定期回放近期 episode、发现重复模式、去重、检查一致性——本质上就是人类睡眠对记忆做的事。</span>
+    </p>
+
+    <p>
+      <span data-en>We built this as a gated pipeline that runs when two conditions are met: at least 24 hours since the last run, and at least 5 new episodes. The pipeline has four stages:</span>
+      <span data-zh>我们将其构建为一个有门控条件的管道：距上次运行 ≥24 小时，且 ≥5 个新 episode。管道分四个阶段：</span>
+    </p>
+
+    <ol>
+      <li><span data-en><strong>Scan</strong> — read all episodes across all projects.</span><span data-zh><strong>扫描</strong>——读取所有项目的全部 episode。</span></li>
+      <li><span data-en><strong>Pattern detection</strong> — find lessons that recur 3+ times. This is Ebbinghaus's "savings" effect applied computationally: repeated recall signals durable relevance.</span><span data-zh><strong>模式检测</strong>——找到出现 3 次以上的教训。这是对艾宾浩斯"节省效应"的计算化应用：重复回忆信号表明持久相关性。</span></li>
+      <li><span data-en><strong>Dedup</strong> — eliminate exact and near-duplicate episodes. First run on 339 episodes caught 6 exact duplicates.</span><span data-zh><strong>去重</strong>——消除完全重复和近似重复的 episode。首次运行扫描 339 个 episode，捕获 6 条完全重复。</span></li>
+      <li><span data-en><strong>Consistency check</strong> — verify the memory index matches on-disk state, flag orphaned files or missing entries.</span><span data-zh><strong>一致性检查</strong>——验证记忆索引与磁盘状态匹配，标记孤立文件或缺失条目。</span></li>
+    </ol>
+
+    <p>
+      <span data-en>Candidate rules go through human review before promotion — the system proposes, the human disposes. This mirrors Nonaka's SECI knowledge management cycle (1994): tacit knowledge (episodes) is externalized into explicit rules, then internalized by the agent when it loads the consolidated memory. The human review gate prevents the system from promoting noise into durable rules.</span>
+      <span data-zh>候选规则在提升前经过人工审核——系统提议，人类决定。这呼应了野中的 SECI 知识管理循环（1994）：隐性知识（episode）被外化为显性规则，Agent 加载整合后的记忆时再被内化。人工审核门控防止系统将噪音提升为持久规则。</span>
+    </p>
+
+    <h2><span data-en>Write Scoping: Not All Memory Should Be Equally Writable</span><span data-zh>写权限作用域：不是所有记忆都应该等同可写</span></h2>
+
+    <p>
+      <span data-en>This one seems obvious in hindsight. Project episodes are append-only — the agent should freely record what happened. But distilled rules in governance files (development practices, user preferences) and reference files (platform best practices) represent curated knowledge that was already validated. Letting the agent modify these based on a single new episode undoes careful curation.</span>
+      <span data-zh>这一点事后看来显而易见。项目 episode 天然是只追加的——Agent 应该自由记录发生了什么。但治理文件（开发准则、用户偏好）和引用文件（平台最佳实践）中的提炼规则代表了已验证的策展知识。让 Agent 基于一个新 episode 就修改这些文件，会毁掉精心的策展。</span>
+    </p>
+
+    <p>
+      <span data-en>The fix: a metadata field (<code>access: readwrite</code> vs <code>readonly</code>) on each memory file, checked at planning time before execution. Active project files are writable; everything else is read-only. Same principle as database permissions — write access should match the volatility of the data, not the convenience of the writer.</span>
+      <span data-zh>修复：每个记忆文件上加一个元数据字段（<code>access: readwrite</code> vs <code>readonly</code>），在规划阶段、执行之前检查。活跃项目文件可写；其他全部只读。和数据库权限同一个原则——写权限应该匹配数据的易变性，而不是写入者的便利性。</span>
+    </p>
+
+    <h2><span data-en>Gate Amnesia: The Failure Mode Nobody Warned Us About</span><span data-zh>门控失忆：没人提醒过我们的失败模式</span></h2>
+
+    <p>
+      <span data-en>The most surprising discovery wasn't in skills or memory — it was in the governance layer. If you run any kind of pre-task governance (risk classification, scope declaration, confirmation gates), you probably implement it as an in-context instruction: "Before any task, first classify risk, then declare scope." This works — until it doesn't.</span>
+      <span data-zh>最令人意外的发现不在技能或记忆——而在治理层。如果你运行任何形式的任务前治理（风险分类、范围声明、确认门控），你可能把它实现为上下文内指令："任何任务之前，先分类风险，再声明范围。"这管用——直到不管用的那天。</span>
+    </p>
+
+    <p>
+      <span data-en>During a long optimization session, context compaction triggered — the model's mechanism for staying within its context window by summarizing older messages. After compaction, the agent resumed work without re-entering the governance gates. It had silently forgotten the rules. We call this "gate amnesia."</span>
+      <span data-zh>在一次长时间的优化会话中，上下文压缩被触发了——模型通过总结旧消息来保持在上下文窗口内的机制。压缩后，Agent 恢复工作时没有重新进入治理门控。它静默地忘记了规则。我们称之为"门控失忆"。</span>
+    </p>
+
+    <p>
+      <span data-en>This isn't a one-off. Tokita (2026) observed that "AI follows safety instructions perfectly across 150 messages, then silently ignores them after context compaction." Anthropic's 2026 agentic coding report makes the same distinction: <strong>advisory</strong> instructions (rules in the context, 70-90% compliance) versus <strong>deterministic</strong> enforcement (hooks, middleware, external checks — 100% compliance). The VibeGuard and TDAD frameworks both argue for gates-as-infrastructure rather than gates-as-instructions.</span>
+      <span data-zh>这不是个例。Tokita（2026）观察到"AI 在 150 条消息内完美遵循安全指令，上下文压缩后静默忽略"。Anthropic 2026 agentic coding 报告做出了同样的区分：<strong>建议性</strong>指令（上下文内规则，70-90% 合规率）vs <strong>确定性</strong>执行（hooks、中间件、外部检查——100% 合规率）。VibeGuard 和 TDAD 框架都主张"门控即基础设施"而非"门控即指令"。</span>
+    </p>
+
+    <p>
+      <span data-en>Our fix is a two-layer defense. Layer one: an advisory instruction telling the agent to re-enter governance gates after any context break. This catches ~80% of cases. Layer two: a deterministic hook pipeline. When context compaction fires, a hook writes a marker file. On the next user prompt, another hook reads the marker and injects a mandatory governance re-entry reminder into the context — bypassing the compressed memory entirely. The marker file bridges the two events because the compaction event can't inject context directly.</span>
+      <span data-zh>我们的修复是两层防御。第一层：一条建议性指令，告诉 Agent 在任何上下文中断后重新进入治理门控。这捕获约 80% 的情况。第二层：确定性 hook 管道。上下文压缩触发时，一个 hook 写入标记文件。下一次用户提示时，另一个 hook 读取标记并向上下文注入强制的治理重入提醒——完全绕过被压缩的记忆。标记文件桥接两个事件，因为压缩事件本身无法直接注入上下文。</span>
+    </p>
+
+    <p>
+      <span data-en>The general principle: any governance rule that matters needs enforcement outside the context window that carries it. The context window is both the vehicle for your rules and the mechanism that compresses them away. If you rely solely on in-context rules, you're building governance on a substrate that periodically erases itself.</span>
+      <span data-zh>通用原则：任何重要的治理规则都需要上下文窗口之外的执行机制。上下文窗口既是你规则的载体，也是压缩它们的机制。如果你仅依赖上下文内规则，你是在一个周期性自我擦除的基底上构建治理。</span>
+    </p>
+
+    <h2><span data-en>Results</span><span data-zh>结果</span></h2>
+
+    <p>
+      <span data-en>After the full audit:</span>
+      <span data-zh>完整审计后：</span>
+    </p>
+
+    <ul>
+      <li><span data-en><strong>Instructions:</strong> 9,500 &rarr; 6,841 lines (28% reduction). 63 of 101 skills gained citable authoritative sources. 26 bloat violations &rarr; 0. ~29,000 tokens freed per full skill load.</span><span data-zh><strong>指令：</strong>9,500 → 6,841 行（减少 28%）。101 个技能中 63 个获得了可引用的权威来源。26 个膨胀违规 → 0。每次全量加载节省约 29,000 token。</span></li>
+      <li><span data-en><strong>Memory:</strong> largest project went from 209 raw episodes to 9 distilled rules. Dedup eliminated exact duplicates across 339 episodes. Async consolidation pipeline operational with human-in-the-loop promotion.</span><span data-zh><strong>记忆：</strong>最大项目从 209 个原始 episode 降至 9 条提炼规则。去重消除了 339 个 episode 中的完全重复。异步整合管道已运行，规则提升需人工审核。</span></li>
+      <li><span data-en><strong>Governance:</strong> zero gate-amnesia incidents since deploying the two-layer hook defense. Advisory compliance alone was 70-90%; with the deterministic layer, observed compliance is 100%.</span><span data-zh><strong>治理：</strong>部署两层 hook 防御以来，零门控失忆事件。仅靠建议性指令合规率 70-90%；加上确定性层后，观测合规率 100%。</span></li>
+    </ul>
+
+    <h2><span data-en>What We Haven't Solved</span><span data-zh>尚未解决的问题</span></h2>
+
+    <p>
+      <span data-en><strong>Source staleness.</strong> We anchored 63 skills in external sources, but sources themselves age. OWASP Top 10 updates every few years. Platform APIs change quarterly. We don't yet have a process that detects when a cited source has been superseded. Right now it's manual — someone notices during a task that a rule cites an outdated standard. That's a maintenance gap waiting to bite.</span>
+      <span data-zh><strong>来源过期。</strong>我们用外部来源锚定了 63 个技能，但来源本身也会过时。OWASP Top 10 每几年更新一次。平台 API 每季度变化。我们还没有一个流程来检测被引用的来源是否已被取代。目前靠人工——有人在执行任务时注意到某条规则引用了过时标准。这是一个等着出问题的维护缺口。</span>
+    </p>
+
+    <p>
+      <span data-en><strong>Consolidation quality.</strong> The async consolidation pipeline finds recurring patterns and proposes candidate rules, but "recurring" doesn't always mean "correct." We've seen cases where the same mistake was repeated 5 times — a genuine anti-pattern, not a rule to promote. The human review gate catches this, but we'd like the system to distinguish "this keeps happening because it works" from "this keeps happening because we keep getting it wrong."</span>
+      <span data-zh><strong>整合质量。</strong>异步整合管道能发现重复模式并提议候选规则，但"重复"并不总意味着"正确"。我们见过同一个错误重复 5 次的情况——那是真正的反模式，不是应该提升的规则。人工审核门控能拦住这种情况，但我们希望系统能区分"这反复发生因为它有效"和"这反复发生因为我们一直犯同样的错"。</span>
+    </p>
+
+    <p>
+      <span data-en><strong>Cross-skill interaction.</strong> We optimized each skill independently. But skills interact — the chapter writer loads the pacing checker's rules, which reference the information density checker's thresholds. We haven't verified that individually optimized skills still compose correctly when loaded together. That's a combinatorial testing problem we don't have a good answer for yet.</span>
+      <span data-zh><strong>跨技能交互。</strong>我们独立优化了每个技能。但技能之间有交互——章节写作器加载节奏检查器的规则，后者引用信息密度检查器的阈值。我们还没有验证独立优化的技能在一起加载时仍然正确组合。这是一个组合测试问题，我们还没有好的答案。</span>
+    </p>
+
+    <h2><span data-en>Checklist: Auditing Agent Knowledge</span><span data-zh>清单：审计 Agent 知识</span></h2>
+
+    <p>
+      <span data-en>If you're maintaining agent instruction files or episodic memory of any kind, here's a prioritized checklist. Start from the top — each item builds on the previous ones.</span>
+      <span data-zh>如果你在维护任何形式的 Agent 指令文件或情景记忆，以下是按优先级排列的清单。从第一条开始——每条都建立在前一条之上。</span>
+    </p>
+
+    <ol>
+      <li><span data-en><strong>Measure before you cut.</strong> Count total instruction lines and tokens. Identify which files exceed your target threshold (ours was 200 lines). You need a baseline to know if compression helped.</span><span data-zh><strong>先度量再动刀。</strong>统计总指令行数和 token 数。找出超过目标阈值的文件（我们的是 200 行）。你需要一个基线来判断压缩是否有效。</span></li>
+      <li><span data-en><strong>Compress first, enhance second.</strong> Delete marketing copy, changelogs, file trees, and generic tips. Keep declarative must/never/always rules. Extract examples to reference files. A 600-line skill with great citations is still 600 lines competing for context.</span><span data-zh><strong>先压缩再增强。</strong>删除营销文案、更新日志、文件树和泛用建议。保留声明性的 must/never/always 规则。示例提取到引用文件。600 行带优秀引用的技能仍然是 600 行在争夺上下文。</span></li>
+      <li><span data-en><strong>For every remaining rule, find a "why" and a boundary.</strong> "Be thorough" is not a rule. "Check OWASP Top 10:2021 A01-A03 and A07" is. Match source type to skill type: standards for compliance, academic research for cognitive, craft theory for creative, platform docs for platform-specific.</span><span data-zh><strong>为每条留下的规则找到"为什么"和边界。</strong>"要全面"不是规则。"检查 OWASP Top 10:2021 A01-A03 和 A07"才是。来源类型匹配技能类型：标准用于合规类，学术研究用于认知类，创作理论用于创意类，平台文档用于平台专属。</span></li>
+      <li><span data-en><strong>Skip what doesn't need it.</strong> CLI wrappers, API aggregators, and pipeline nodes under 20 lines are fine without citations. The test: does adding a source make the instruction more precise? If not, you're adding noise.</span><span data-zh><strong>跳过不需要的。</strong>CLI 封装器、API 聚合器和 20 行以下的流水线节点不需要引用。测试标准：加了来源是否让指令更精确？如果不是，你在加噪音。</span></li>
+      <li><span data-en><strong>Audit episodic memory for signal-to-noise.</strong> If any project has more than ~50 episodes, check how many are redundant variations of the same lesson. Distill recurring patterns (3+ occurrences) into rules; archive the rest.</span><span data-zh><strong>审计情景记忆的信噪比。</strong>如果任何项目超过约 50 个 episode，检查有多少是同一教训的冗余变体。将重复模式（出现 3 次以上）提炼为规则；归档其余。</span></li>
+      <li><span data-en><strong>Scope write access by volatility.</strong> Active project logs should be freely writable. Curated governance rules and validated best practices should be read-only to the agent. Match write permissions to data volatility, not writer convenience.</span><span data-zh><strong>按易变性分配写权限。</strong>活跃项目日志应该可自由写入。策展的治理规则和已验证的最佳实践对 Agent 应为只读。写权限匹配数据易变性，而非写入者便利性。</span></li>
+      <li><span data-en><strong>Test governance rules against context compaction.</strong> Run a session long enough to trigger compaction. Does the agent still follow your pre-task gates afterward? If not, add deterministic enforcement (hooks, middleware) outside the context window.</span><span data-zh><strong>对上下文压缩测试治理规则。</strong>运行一个足够长的会话以触发压缩。Agent 之后还遵循你的任务前门控吗？如果不是，在上下文窗口之外添加确定性执行（hooks、中间件）。</span></li>
+    </ol>
+
+    <blockquote>
+      <span data-en>The thread connecting all three layers is the same: entropy is the default. Instructions drift toward bloat. Memory drifts toward noise. Governance drifts toward non-enforcement. Each layer requires active, periodic maintenance with a clear standard for what "good" looks like — not a one-time setup that you hope will hold. The systems that work aren't the ones with the best initial design. They're the ones with the best maintenance loops.</span>
+      <span data-zh>连接三个知识层的线索是同一个：熵是默认状态。指令向膨胀漂移。记忆向噪音漂移。治理向不执行漂移。每个层都需要主动的、定期的维护，并有"好"的清晰标准——而不是一次性搭好然后祈祷它撑住。能持续运转的系统不是初始设计最好的那些，而是维护循环最好的那些。</span>
+    </blockquote>
+
+    <div class="article-page-footer">
+      <p><span data-en>Written by Ming Zhou · 2026</span><span data-zh>作者：Ming Zhou · 2026</span></p>
+      <a href="../#writing" class="article-page-back">&larr; <span data-en>Back to all writing</span><span data-zh>返回文章列表</span></a>
+    </div>
+  </main>
+
+  <script src="../js/main.js"></script>
+</body>
+</html>
