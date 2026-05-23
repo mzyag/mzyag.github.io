@@ -10,12 +10,18 @@
   <meta property="og:type" content="article">
   <meta property="og:url" content="https://mzyag.github.io/writing/engineering-the-harness.html">
   <meta property="og:locale" content="en_US">
+  <meta property="og:image" content="https://mzyag.github.io/assets/og-image.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
   <meta property="og:site_name" content="Ming Zhou">
   <meta name="twitter:card" content="summary">
   <meta name="twitter:title" content="Engineering the Harness: Governing Agent Behavior Without Slowing Down Delivery">
   <meta name="twitter:description" content="A practical guide to building a harness layer around LLM agents — routing, human checkpoints, state persistence, watchdog recovery, and layered memory — so they're production-safe without killing developer velocity.">
   <meta name="author" content="Ming Zhou">
   <link rel="canonical" href="https://mzyag.github.io/writing/engineering-the-harness.html">
+  <link rel="alternate" hreflang="en" href="https://mzyag.github.io/writing/engineering-the-harness.html">
+  <link rel="alternate" hreflang="zh" href="https://mzyag.github.io/writing/engineering-the-harness.html">
+  <link rel="alternate" hreflang="x-default" href="https://mzyag.github.io/writing/engineering-the-harness.html">
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect fill='%2309090b' width='100' height='100' rx='16'/%3E%3Ctext x='50' y='72' font-family='Inter,sans-serif' font-size='64' font-weight='700' fill='%233b82f6' text-anchor='middle'%3EM%3C/text%3E%3C/svg%3E">
   <link rel="stylesheet" href="../css/style.css">
   <script type="application/ld+json">
@@ -27,7 +33,60 @@
     "author": {"@type": "Person", "name": "Ming Zhou", "url": "https://mzyag.github.io/"},
     "publisher": {"@type": "Person", "name": "Ming Zhou"},
     "url": "https://mzyag.github.io/writing/engineering-the-harness.html",
-    "datePublished": "2025-05-18"
+    "datePublished": "2025-05-18",
+    "dateModified": "2026-05-23",
+    "keywords": ["agent harness", "agent governance", "human-in-the-loop", "state persistence", "watchdog recovery", "layered memory"]
+  }
+  </script>
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    "itemListElement": [
+      {"@type": "ListItem", "position": 1, "name": "Home", "item": "https://mzyag.github.io/"},
+      {"@type": "ListItem", "position": 2, "name": "Writing", "item": "https://mzyag.github.io/#writing"},
+      {"@type": "ListItem", "position": 3, "name": "Engineering the Harness"}
+    ]
+  }
+  </script>
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": [
+      {
+        "@type": "Question",
+        "name": "How long does it typically take to implement a harness for an existing agent system?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Start with intent confirmation and risk classification — these two gates can be added in a day and eliminate the most damaging failure modes. The full five-layer harness took us about three weeks to harden for production, but each layer is independently deployable. You get value from day one, not only after the complete build."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Does the harness add noticeable latency to agent responses?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "The deterministic layers (keyword routing, risk classification, state persistence) add single-digit milliseconds — imperceptible to users. The only user-visible pause comes from human checkpoints, which are intentional: the 5-10 seconds a user spends confirming intent prevents the 30-60 minutes of cleanup that an unchecked agent can cause."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Can this harness approach work with hosted API agents like the OpenAI Assistants API or Claude tool-use, not just CLI agents?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "The five layers are transport-agnostic. For hosted APIs, the harness sits between your application code and the API call — you intercept tool-call requests before execution, enforce step budgets in your orchestration loop, and persist state in your own database instead of on disk. The only layer that changes shape is the watchdog: instead of monitoring stdout, you monitor API response latency and implement client-side timeouts."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "How do you handle harness upgrades without disrupting in-flight workflows?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "The state persistence layer makes this straightforward. Since every workflow phase writes state to disk with a schema version, you deploy the new harness code, and it reads existing state files with backward-compatible logic. In-flight workflows complete under the rules they started with. New workflows pick up the updated rules. We have never needed to drain or pause the system for a harness upgrade."
+        }
+      }
+    ]
   }
   </script>
 </head>
@@ -55,7 +114,7 @@
     <a href="../#writing" class="article-page-back">&larr; <span data-en>Back to all writing</span><span data-zh>返回文章列表</span></a>
 
     <div class="article-page-meta">
-      <span>2025</span>
+      <span><span data-en>May 2025</span><span data-zh>2025 年 5 月</span></span>
       <span><span data-en>10 min read</span><span data-zh>10 分钟阅读</span></span>
     </div>
 
@@ -68,6 +127,17 @@
       <span data-en>If you're building with LLM agents, you've probably hit the moment where your agent silently rewrites an auth module because you said "add authentication" when you meant "add a token check." An agent without a harness is a liability. The harness is the layer between the LLM's capabilities and the real world — routing, checkpoints, state management, recovery, and memory. Done right, it makes agents safer without making them slower. This article walks through five layers of harness design, drawn from production experience on a financial services platform.</span>
       <span data-zh>如果你正在用 LLM Agent 构建系统，你可能已经遇到过这种情况：你说"加个认证"（本意是"加个 token 校验"），Agent 却悄悄重写了你的整个认证模块。没有 harness 的 Agent 是一个隐患。Harness 是 LLM 能力与真实世界之间的层——路由、检查点、状态管理、恢复和记忆。做好了，它让 Agent 更安全而不更慢。本文将介绍 harness 设计的五个层次，源自在金融服务平台的生产经验。</span>
     </p>
+
+    <div class="key-takeaways">
+      <h2><span data-en>Key Takeaways</span><span data-zh>核心要点</span></h2>
+      <ul>
+        <li><span data-en>A harness is deterministic scaffolding around a probabilistic LLM core — it decides whether agent outputs reach the real world, not the LLM itself.</span><span data-zh>Harness 是包裹在概率性 LLM 核心外围的确定性脚手架——由它决定 Agent 输出是否到达真实世界，而不是 LLM 自己决定。</span></li>
+        <li><span data-en>Keyword-first routing handles 90% of task classification in microseconds; reserving LLM routing for ambiguous cases cuts latency and cost by an order of magnitude.</span><span data-zh>关键词优先路由在微秒级处理 90% 的任务分类；仅对模糊场景使用 LLM 路由可将延迟和成本降低一个数量级。</span></li>
+        <li><span data-en>Human checkpoints must use exact-match confirmation phrases — substring matching caused a production incident where "不好意思我在忙" ("sorry I'm busy") was interpreted as approval.</span><span data-zh>人工检查点必须使用精确匹配的确认短语——子字符串匹配曾导致生产事故，"不好意思我在忙"被误判为批准。</span></li>
+        <li><span data-en>Step budgets (typically capped at 5) prevent scope creep by forcing the agent to return to the approval gate before adding new steps to a plan.</span><span data-zh>步骤预算（通常上限为 5）通过强制 Agent 在添加新步骤前返回审批门控来防止范围蔓延。</span></li>
+        <li><span data-en>LLM output must be treated as untrusted input at every layer — extract JSON with regex, diff changes against approved scope, and validate tool calls against risk classifications before execution.</span><span data-zh>LLM 输出在每一层都必须被视为不可信输入——用正则提取 JSON、将更改与批准范围 diff、在执行前验证工具调用的风险分类。</span></li>
+      </ul>
+    </div>
 
     <h2><span data-en>What Is a Harness?</span><span data-zh>什么是 Harness？</span></h2>
 
@@ -245,6 +315,20 @@
       <li><span data-en><strong>Persist workflow state to disk.</strong> Write state on every phase transition using atomic rename. If the process dies between "plan presented" and "user approved," the state file lets you resume exactly where you left off.</span><span data-zh><strong>将工作流状态持久化到磁盘。</strong>每次阶段转换时用原子重命名写入状态。如果进程在"计划已展示"和"用户已批准"之间死亡，状态文件让你从中断处精确恢复。</span></li>
       <li><span data-en><strong>Treat all LLM output as untrusted input.</strong> Extract JSON with regex (don't assume clean responses). Diff actual changes against approved scope. Check tool calls against your risk classification before allowing execution.</span><span data-zh><strong>将所有 LLM 输出视为不可信输入。</strong>用正则提取 JSON（不要假设干净的响应）。将实际更改与批准范围进行 diff。在允许执行前检查工具调用的风险分类。</span></li>
     </ol>
+
+    <h2><span data-en>Frequently Asked Questions</span><span data-zh>常见问题</span></h2>
+
+    <h3><span data-en>How long does it typically take to implement a harness for an existing agent system?</span><span data-zh>为已有的 Agent 系统实现 harness 通常需要多长时间？</span></h3>
+    <p><span data-en>Start with intent confirmation and risk classification — these two gates can be added in a day and eliminate the most damaging failure modes. The full five-layer harness took us about three weeks to harden for production, but each layer is independently deployable. You get value from day one, not only after the complete build.</span><span data-zh>从意图确认和风险分类开始——这两个门控可以在一天内添加，并消除最具破坏性的故障模式。完整的五层 harness 我们花了约三周才达到生产级稳定，但每一层都可以独立部署。从第一天就能获得价值，而不是等到全部完成。</span></p>
+
+    <h3><span data-en>Does the harness add noticeable latency to agent responses?</span><span data-zh>Harness 会给 Agent 响应增加明显的延迟吗？</span></h3>
+    <p><span data-en>The deterministic layers (keyword routing, risk classification, state persistence) add single-digit milliseconds — imperceptible to users. The only user-visible pause comes from human checkpoints, which are intentional: the 5-10 seconds a user spends confirming intent prevents the 30-60 minutes of cleanup that an unchecked agent can cause.</span><span data-zh>确定性层（关键词路由、风险分类、状态持久化）增加的延迟在个位数毫秒级——用户无法感知。唯一可感知的停顿来自人工检查点，而这是有意为之的：用户花 5-10 秒确认意图，可以避免不受约束的 Agent 造成的 30-60 分钟清理工作。</span></p>
+
+    <h3><span data-en>Can this harness approach work with hosted API agents like the OpenAI Assistants API or Claude tool-use, not just CLI agents?</span><span data-zh>这种 harness 方法能用于 OpenAI Assistants API 或 Claude 工具调用等托管 API Agent，还是只适用于 CLI Agent？</span></h3>
+    <p><span data-en>The five layers are transport-agnostic. For hosted APIs, the harness sits between your application code and the API call — you intercept tool-call requests before execution, enforce step budgets in your orchestration loop, and persist state in your own database instead of on disk. The only layer that changes shape is the watchdog: instead of monitoring stdout, you monitor API response latency and implement client-side timeouts.</span><span data-zh>这五层与传输方式无关。对于托管 API，harness 位于你的应用代码和 API 调用之间——在执行前拦截工具调用请求，在编排循环中执行步骤预算，将状态持久化到自己的数据库而非磁盘。唯一需要改变形态的是看门狗层：不再监控 stdout，而是监控 API 响应延迟并实现客户端超时。</span></p>
+
+    <h3><span data-en>How do you handle harness upgrades without disrupting in-flight workflows?</span><span data-zh>如何在不中断正在执行的工作流的情况下升级 harness？</span></h3>
+    <p><span data-en>The state persistence layer makes this straightforward. Since every workflow phase writes state to disk with a schema version, you deploy the new harness code, and it reads existing state files with backward-compatible logic. In-flight workflows complete under the rules they started with. New workflows pick up the updated rules. We have never needed to drain or pause the system for a harness upgrade.</span><span data-zh>状态持久化层使这变得简单。由于每个工作流阶段都以带有 schema 版本的方式将状态写入磁盘，你部署新的 harness 代码后，它以向后兼容的逻辑读取现有状态文件。正在执行的工作流按其启动时的规则完成。新工作流采用更新后的规则。我们从未需要为 harness 升级而排空或暂停系统。</span></p>
 
     <div class="article-page-footer">
       <p><span data-en>Written by Ming Zhou · 2025</span><span data-zh>作者：Ming Zhou · 2025</span></p>

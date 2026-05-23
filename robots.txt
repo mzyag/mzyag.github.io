@@ -1,3 +1,68 @@
+# robots.txt — SEO + GEO Balanced Policy
+# Strategy: Allow live-retrieval AI bots (citation traffic), block training scrapers (bandwidth drain)
+# Review quarterly — crawler names and behavior change.
+
+# === Standard Search Engines ===
+User-agent: Googlebot
+Allow: /
+
+User-agent: Bingbot
+Allow: /
+
+User-agent: DuckDuckBot
+Allow: /
+
+# === AI Live-Retrieval / Citation Agents (ALLOW — these create citations) ===
+
+# OpenAI search integration
+User-agent: OAI-SearchBot
+Allow: /
+
+# ChatGPT browsing (user-triggered)
+User-agent: ChatGPT-User
+Allow: /
+
+# Anthropic search / Claude web browse
+User-agent: Claude-SearchBot
+Allow: /
+
+User-agent: Claude-Web
+Allow: /
+
+User-agent: anthropic-ai
+Allow: /
+
+# Perplexity search
+User-agent: PerplexityBot
+Allow: /
+
+# === AI Training Scrapers (BLOCK — high bandwidth, zero citation value) ===
+# Remove these blocks if you want your content in training data.
+
+# OpenAI model training
+User-agent: GPTBot
+Disallow: /
+
+# Common Crawl (feeds many models)
+User-agent: CCBot
+Disallow: /
+
+# Google/Gemini model training
+User-agent: Google-Extended
+Disallow: /
+
+# Meta model training
+User-agent: Meta-ExternalAgent
+Disallow: /
+
+User-agent: FacebookBot
+Disallow: /
+
+# Bytedance
+User-agent: Bytespider
+Disallow: /
+
+# === Default ===
 User-agent: *
 Allow: /
 

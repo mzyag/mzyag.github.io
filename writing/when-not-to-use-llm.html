@@ -10,12 +10,18 @@
   <meta property="og:type" content="article">
   <meta property="og:url" content="https://mzyag.github.io/writing/when-not-to-use-llm.html">
   <meta property="og:locale" content="en_US">
+  <meta property="og:image" content="https://mzyag.github.io/assets/og-image.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
   <meta property="og:site_name" content="Ming Zhou">
   <meta name="twitter:card" content="summary">
   <meta name="twitter:title" content="When Not to Use an LLM">
   <meta name="twitter:description" content="A practical five-question checklist for deciding when an LLM call is worth the latency, cost, and non-determinism — and when a regular function will do the job better.">
   <meta name="author" content="Ming Zhou">
   <link rel="canonical" href="https://mzyag.github.io/writing/when-not-to-use-llm.html">
+  <link rel="alternate" hreflang="en" href="https://mzyag.github.io/writing/when-not-to-use-llm.html">
+  <link rel="alternate" hreflang="zh" href="https://mzyag.github.io/writing/when-not-to-use-llm.html">
+  <link rel="alternate" hreflang="x-default" href="https://mzyag.github.io/writing/when-not-to-use-llm.html">
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect fill='%2309090b' width='100' height='100' rx='16'/%3E%3Ctext x='50' y='72' font-family='Inter,sans-serif' font-size='64' font-weight='700' fill='%233b82f6' text-anchor='middle'%3EM%3C/text%3E%3C/svg%3E">
   <link rel="stylesheet" href="../css/style.css">
   <script type="application/ld+json">
@@ -27,7 +33,60 @@
     "author": {"@type": "Person", "name": "Ming Zhou", "url": "https://mzyag.github.io/"},
     "publisher": {"@type": "Person", "name": "Ming Zhou"},
     "url": "https://mzyag.github.io/writing/when-not-to-use-llm.html",
-    "datePublished": "2025-05-18"
+    "datePublished": "2025-05-18",
+    "dateModified": "2026-05-23",
+    "keywords": ["LLM decision framework", "deterministic code", "AI vs code", "production systems", "when not to use AI"]
+  }
+  </script>
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    "itemListElement": [
+      {"@type": "ListItem", "position": 1, "name": "Home", "item": "https://mzyag.github.io/"},
+      {"@type": "ListItem", "position": 2, "name": "Writing", "item": "https://mzyag.github.io/#writing"},
+      {"@type": "ListItem", "position": 3, "name": "When Not to Use an LLM"}
+    ]
+  }
+  </script>
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": [
+      {
+        "@type": "Question",
+        "name": "Can you use an LLM as a fallback for edge cases in an otherwise deterministic pipeline?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Yes, and this is often the best hybrid pattern. Route the 85-95% of traffic you can handle deterministically through rules or classifiers, and send only the ambiguous remainder to an LLM. This caps your inference cost at a fraction of full-LLM throughput while preserving quality on the long tail. The key is building a confidence score on the deterministic path so you know exactly when to escalate."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "How do you benchmark an LLM call against a deterministic alternative before committing to either?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Build both paths as thin prototypes and measure four metrics on the same sample of real traffic: p50/p95 latency, accuracy against a human-labeled ground truth set, per-request cost, and failure mode distribution. The ground truth set is critical — without it you are comparing vibes, not performance. A 500-example labeled set is usually enough to make the decision."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Does the five-question framework apply differently for internal tools versus customer-facing products?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "The questions are the same, but the thresholds shift. Internal tools can often tolerate higher latency and occasional errors because there is a human operator who can catch and correct mistakes. Customer-facing products have tighter latency budgets and no safety net, so the bar for adding an LLM call is higher. The \"human in the loop\" question effectively carries double weight in customer-facing contexts."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "What happens when a model provider updates the model version behind your API key?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Silent model updates are one of the most underappreciated risks of LLM dependencies. Output distributions shift, edge-case behavior changes, and your carefully tuned prompts may degrade — all without any deployment on your side. Pin to a specific model version where your provider allows it, maintain a regression test suite of at least 200 representative inputs, and run it on a schedule. Treat model version changes like dependency upgrades: test before you ship."
+        }
+      }
+    ]
   }
   </script>
 </head>
@@ -55,7 +114,7 @@
     <a href="../#writing" class="article-page-back">&larr; <span data-en>Back to all writing</span><span data-zh>返回文章列表</span></a>
 
     <div class="article-page-meta">
-      <span>2025</span>
+      <span><span data-en>May 2025</span><span data-zh>2025 年 5 月</span></span>
       <span><span data-en>6 min read</span><span data-zh>6 分钟阅读</span></span>
     </div>
 
@@ -68,6 +127,17 @@
       <span data-en>If you're reaching for an LLM every time you need to transform data, classify a request, or validate input, stop and ask yourself: does this actually need language understanding? Every LLM call in your pipeline adds latency, cost, and a non-determinism surface. The default should be skepticism — you need a clear reason to add an LLM call, not a clear reason to avoid it. This article gives you a five-question framework and two real-world cases to help you draw that line.</span>
       <span data-zh>如果你每次需要转换数据、分类请求或验证输入时都想用 LLM，请先停下来问自己：这真的需要语言理解吗？管道中的每个 LLM 调用都会增加延迟、成本和不确定性。默认态度应该是怀疑——你需要一个明确的理由来添加 LLM 调用，而不是一个明确的理由来避免它。本文提供一个五问框架和两个真实案例，帮你划清这条线。</span>
     </p>
+
+    <div class="key-takeaways">
+      <h2><span data-en>Key Takeaways</span><span data-zh>核心要点</span></h2>
+      <ul>
+        <li><span data-en>Every LLM call adds four compounding costs — latency, non-determinism, compute expense, and audit complexity — that must be justified on every single request.</span><span data-zh>每次 LLM 调用都会叠加四项成本——延迟、不确定性、计算费用和审计复杂性——必须在每个请求上逐一论证其合理性。</span></li>
+        <li><span data-en>Replacing 9 out of 23 LLM calls with deterministic code cut monthly inference cost by 59% and reduced non-determinism incidents from 7 per month to 1.</span><span data-zh>将 23 个 LLM 调用中的 9 个替换为确定性代码，月推理成本降低了 59%，不确定性事故从每月 7 起降至 1 起。</span></li>
+        <li><span data-en>A keyword trie plus lightweight TF-IDF matched LLM routing accuracy at 97.3% while resolving in under 2ms versus the LLM's 780ms.</span><span data-zh>关键词 trie 加轻量级 TF-IDF 以 97.3% 的准确率匹配了 LLM 路由结果，解析时间不到 2ms，而 LLM 需要 780ms。</span></li>
+        <li><span data-en>Using an LLM to patch messy upstream data creates two layers of uncertainty — fix the data pipeline instead of hiding the problem behind inference.</span><span data-zh>使用 LLM 来修补混乱的上游数据会制造两层不确定性——应该修复数据管道，而不是用推理掩盖问题。</span></li>
+        <li><span data-en>The most reliable architecture lets the LLM handle understanding and generation while deterministic code enforces authorization, validation, and control.</span><span data-zh>最可靠的架构让 LLM 负责理解和生成，而确定性代码负责授权、验证和控制。</span></li>
+      </ul>
+    </div>
 
     <h2><span data-en>The LLM Tax</span><span data-zh>LLM 税</span></h2>
 
@@ -214,6 +284,20 @@
       <span data-en>When you do use an LLM, enforce the boundary: <strong>LLM decides what, deterministic code decides whether.</strong> Let the LLM handle understanding and generation. Let rules, validators, and humans handle authorization and control. Enforce this split at the architecture level, not through developer discipline.</span>
       <span data-zh>当你确实使用 LLM 时，强制执行边界：<strong>LLM 决定"做什么"，确定性代码决定"是否做"。</strong>让 LLM 处理理解和生成。让规则、验证器和人类处理授权和控制。在架构层面强制执行此分工，而非依赖开发者自律。</span>
     </p>
+
+    <h2><span data-en>Frequently Asked Questions</span><span data-zh>常见问题</span></h2>
+
+    <h3><span data-en>Can you use an LLM as a fallback for edge cases in an otherwise deterministic pipeline?</span><span data-zh>可以在确定性管道中将 LLM 作为边缘情况的回退吗？</span></h3>
+    <p><span data-en>Yes, and this is often the best hybrid pattern. Route the 85-95% of traffic you can handle deterministically through rules or classifiers, and send only the ambiguous remainder to an LLM. This caps your inference cost at a fraction of full-LLM throughput while preserving quality on the long tail. The key is building a confidence score on the deterministic path so you know exactly when to escalate.</span><span data-zh>可以，这通常是最佳的混合模式。将 85-95% 可以确定性处理的流量通过规则或分类器路由，仅将模糊的剩余部分发送给 LLM。这将推理成本控制在全 LLM 吞吐量的一小部分，同时保持长尾质量。关键是在确定性路径上构建置信度分数，以便准确知道何时升级。</span></p>
+
+    <h3><span data-en>How do you benchmark an LLM call against a deterministic alternative before committing to either?</span><span data-zh>在决定采用哪种方案之前，如何对 LLM 调用和确定性替代方案进行基准测试？</span></h3>
+    <p><span data-en>Build both paths as thin prototypes and measure four metrics on the same sample of real traffic: p50/p95 latency, accuracy against a human-labeled ground truth set, per-request cost, and failure mode distribution. The ground truth set is critical — without it you are comparing vibes, not performance. A 500-example labeled set is usually enough to make the decision.</span><span data-zh>将两条路径都构建为轻量原型，并在同一批真实流量样本上测量四个指标：p50/p95 延迟、与人工标注的真值集对比的准确率、每请求成本和故障模式分布。真值集是关键——没有它，你比较的是感觉而非性能。通常 500 个标注示例就足以做出决策。</span></p>
+
+    <h3><span data-en>Does the five-question framework apply differently for internal tools versus customer-facing products?</span><span data-zh>五问框架对内部工具和面向客户的产品适用方式不同吗？</span></h3>
+    <p><span data-en>The questions are the same, but the thresholds shift. Internal tools can often tolerate higher latency and occasional errors because there is a human operator who can catch and correct mistakes. Customer-facing products have tighter latency budgets and no safety net, so the bar for adding an LLM call is higher. The "human in the loop" question effectively carries double weight in customer-facing contexts.</span><span data-zh>问题是一样的，但阈值不同。内部工具通常可以容忍更高的延迟和偶尔的错误，因为有人类操作员可以发现并纠正错误。面向客户的产品有更紧的延迟预算且没有安全网，因此添加 LLM 调用的门槛更高。"是否有人在环路中"这个问题在面向客户的场景中实际上权重翻倍。</span></p>
+
+    <h3><span data-en>What happens when a model provider updates the model version behind your API key?</span><span data-zh>当模型提供商更新你 API 密钥背后的模型版本时会发生什么？</span></h3>
+    <p><span data-en>Silent model updates are one of the most underappreciated risks of LLM dependencies. Output distributions shift, edge-case behavior changes, and your carefully tuned prompts may degrade — all without any deployment on your side. Pin to a specific model version where your provider allows it, maintain a regression test suite of at least 200 representative inputs, and run it on a schedule. Treat model version changes like dependency upgrades: test before you ship.</span><span data-zh>静默模型更新是 LLM 依赖中最被低估的风险之一。输出分布变化、边缘情况行为改变，你精心调优的提示可能退化——而你这边没有任何部署。在提供商允许的情况下锁定特定模型版本，维护至少 200 个代表性输入的回归测试套件，并定期运行。将模型版本变更视为依赖升级：上线前先测试。</span></p>
 
     <div class="article-page-footer">
       <p><span data-en>Written by Ming Zhou · 2025</span><span data-zh>作者：Ming Zhou · 2025</span></p>

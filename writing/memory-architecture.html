@@ -10,12 +10,18 @@
   <meta property="og:type" content="article">
   <meta property="og:url" content="https://mzyag.github.io/writing/memory-architecture.html">
   <meta property="og:locale" content="en_US">
+  <meta property="og:image" content="https://mzyag.github.io/assets/og-image.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
   <meta property="og:site_name" content="Ming Zhou">
   <meta name="twitter:card" content="summary">
   <meta name="twitter:title" content="Memory Architecture for Production Agents: Beyond the Context Window">
   <meta name="twitter:description" content="A practical guide to designing layered memory for production LLM agents — session TTL, four-dimension content taxonomy, budget-aware context injection, and episode-based self-improvement loops.">
   <meta name="author" content="Ming Zhou">
   <link rel="canonical" href="https://mzyag.github.io/writing/memory-architecture.html">
+  <link rel="alternate" hreflang="en" href="https://mzyag.github.io/writing/memory-architecture.html">
+  <link rel="alternate" hreflang="zh" href="https://mzyag.github.io/writing/memory-architecture.html">
+  <link rel="alternate" hreflang="x-default" href="https://mzyag.github.io/writing/memory-architecture.html">
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect fill='%2309090b' width='100' height='100' rx='16'/%3E%3Ctext x='50' y='72' font-family='Inter,sans-serif' font-size='64' font-weight='700' fill='%233b82f6' text-anchor='middle'%3EM%3C/text%3E%3C/svg%3E">
   <link rel="stylesheet" href="../css/style.css">
   <script type="application/ld+json">
@@ -27,7 +33,60 @@
     "author": {"@type": "Person", "name": "Ming Zhou", "url": "https://mzyag.github.io/"},
     "publisher": {"@type": "Person", "name": "Ming Zhou"},
     "url": "https://mzyag.github.io/writing/memory-architecture.html",
-    "datePublished": "2025-05-18"
+    "datePublished": "2025-05-18",
+    "dateModified": "2026-05-23",
+    "keywords": ["agent memory", "context window", "episodic memory", "self-improvement", "memory taxonomy", "production agents"]
+  }
+  </script>
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    "itemListElement": [
+      {"@type": "ListItem", "position": 1, "name": "Home", "item": "https://mzyag.github.io/"},
+      {"@type": "ListItem", "position": 2, "name": "Writing", "item": "https://mzyag.github.io/#writing"},
+      {"@type": "ListItem", "position": 3, "name": "Memory Architecture for Production Agents"}
+    ]
+  }
+  </script>
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": [
+      {
+        "@type": "Question",
+        "name": "How much of the context budget should memory injection consume?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "We found 4000 characters to be the practical sweet spot for total memory injection. Core memories (Feedback + User) typically consume under 700 characters combined, leaving 3300+ characters for contextual memories, conversation turns, and summaries. Going below 3000 characters starves summaries entirely; above 6000 characters inflates system prompts without measurable benefit because the LLM's attention to injected context degrades with length."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "How do you prevent the agent from hallucinating memories it was never given?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Memory injection is append-only to the system prompt — the agent cannot query or modify the memory store. All memories are presented as a structured briefing block with explicit labels, so the model treats them as given context rather than self-generated knowledge. We also never use phrasing like \"you remember that...\" in the injection; instead we use \"User has stated:\" or \"Prior correction:\" to make the provenance unambiguous. In eight months of operation, fabricated-memory incidents have been near zero with this framing."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "When should you migrate from flat-file storage to a database?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "The trigger is concurrent writes, not data volume. Flat files work well up to hundreds of users because each user's data is isolated to their own directory and the read-all-on-startup pattern stays sub-millisecond. The breakpoint comes when multiple agent processes serve the same user simultaneously — file-level locking becomes fragile. At that point, move to SQLite (single-writer, still file-based, zero-config) before considering PostgreSQL."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Can this memory architecture work with multi-agent systems where several agents share context?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Yes, but you need a scoping layer. In a multi-agent setup, User and Feedback memories should be scoped to the individual agent-user pair because different agents may receive contradictory corrections for legitimate reasons. Project and Reference memories can be shared across agents since they describe the environment, not agent behavior. The injection budget must also be per-agent — sharing a single 4000-character budget across three agents leaves each one context-starved."
+        }
+      }
+    ]
   }
   </script>
 </head>
@@ -55,7 +114,7 @@
     <a href="../#writing" class="article-page-back">&larr; <span data-en>Back to all writing</span><span data-zh>返回文章列表</span></a>
 
     <div class="article-page-meta">
-      <span>2025</span>
+      <span><span data-en>May 2025</span><span data-zh>2025 年 5 月</span></span>
       <span><span data-en>18 min read</span><span data-zh>18 分钟阅读</span></span>
     </div>
 
@@ -68,6 +127,17 @@
       <span data-en>If you've told your agent "always use /workspace as the project root" on Monday only to have it ask again by Wednesday, you've hit the goldfish problem. Most agents have no memory beyond the current context window. In a demo, that's an inconvenience. In production, it's a trust destroyer — users stop relying on the agent because they can't trust it to remember what they've already established. This article walks through a three-tier memory architecture, a four-dimension content taxonomy, budget-aware context injection, and an episode-based self-improvement loop, all drawn from eight months of production operation on a financial services platform.</span>
       <span data-zh>如果你周一告诉 Agent "始终使用 /workspace 作为项目根目录"，到周三它又在问你，你就遇到了"七秒记忆"问题。大多数 Agent 的记忆不会超出当前上下文窗口。演示时这只是小瑕疵。到了生产，这直接摧毁用户信任——用户发现 Agent 记不住已经说好的事情，就不会再依赖它。本文将介绍一个三层记忆架构、四维度内容分类、预算感知的上下文注入以及基于 episode 的自改进循环，全部来自在金融服务平台上八个月的生产运行经验。</span>
     </p>
+
+    <div class="key-takeaways">
+      <h2><span data-en>Key Takeaways</span><span data-zh>核心要点</span></h2>
+      <ul>
+        <li><span data-en>Persistent memories have higher per-token value than conversation history and should never be auto-trimmed; if context budget forces a choice, conversation turns are evicted first.</span><span data-zh>持久记忆的每 token 价值高于对话历史，不应被自动裁剪；当上下文预算迫使选择时，优先驱逐对话轮次。</span></li>
+        <li><span data-en>A four-dimension content taxonomy (User, Feedback, Project, Reference) maps to cognitive science memory types and gives the system structured metadata for injection priority, staleness detection, and conflict resolution without requiring LLM reasoning.</span><span data-zh>四维度内容分类（User、Feedback、Project、Reference）映射到认知科学记忆类型，为系统提供结构化元数据以决定注入优先级、过期检测和冲突解决，无需 LLM 推理。</span></li>
+        <li><span data-en>A one-hour session TTL with compression to a one-paragraph summary is the empirical sweet spot: long enough to survive coffee breaks, short enough to prevent yesterday's context from polluting today's work.</span><span data-zh>一小时的会话 TTL 加压缩为一段摘要是经验最优点：足以覆盖一次休息，又不会让昨天的上下文污染今天的工作。</span></li>
+        <li><span data-en>Feedback memories — user corrections and validated approaches — are the highest-priority injection category because missing one means repeating a mistake the user already told you about.</span><span data-zh>Feedback 记忆——用户纠正和已验证方法——是最高优先级的注入类别，因为遗漏一条意味着重复用户已经告知的错误。</span></li>
+        <li><span data-en>Self-improvement should be human-driven: episode logs provide structured evidence, but automated root cause analysis at 70% accuracy means 30% of fixes silently degrade the system.</span><span data-zh>自改进应由人驱动：episode 日志提供结构化证据，但 70% 准确率的自动化根因分析意味着 30% 的修复在悄悄降低系统质量。</span></li>
+      </ul>
+    </div>
 
     <h2><span data-en>Why Sliding Windows Aren't Enough</span><span data-zh>为什么滑动窗口不够</span></h2>
 
@@ -493,6 +563,20 @@
       <li><span data-en><strong>Log episodes for every completed task.</strong> Record task type, duration, step count, outcome, and files changed. You don't need to inject this into prompts — it's for offline analysis. Without it, you can't measure whether your memory system is actually improving agent performance.</span><span data-zh><strong>为每个完成的任务记录 episode。</strong>记录任务类型、时长、步骤数、结果和更改的文件。不需要注入到提示词中——它是用于离线分析的。没有它，你无法衡量记忆系统是否真正改善了 Agent 表现。</span></li>
       <li><span data-en><strong>Keep self-improvement human-driven.</strong> Use episode data to identify failure patterns, but have humans decide what to change. Automated root cause analysis sounds appealing but compounds errors — a 70% accuracy rate on fixes means 30% of changes silently degrade your system.</span><span data-zh><strong>保持自改进由人驱动。</strong>使用 episode 数据识别失败模式，但由人决定改什么。自动化根因分析听起来诱人但会复利错误——修复准确率 70% 意味着 30% 的变更在悄悄降低系统质量。</span></li>
     </ol>
+
+    <h2><span data-en>Frequently Asked Questions</span><span data-zh>常见问题</span></h2>
+
+    <h3><span data-en>How much of the context budget should memory injection consume?</span><span data-zh>记忆注入应该占用多少上下文预算？</span></h3>
+    <p><span data-en>We found 4000 characters to be the practical sweet spot for total memory injection. Core memories (Feedback + User) typically consume under 700 characters combined, leaving 3300+ characters for contextual memories, conversation turns, and summaries. Going below 3000 characters starves summaries entirely; above 6000 characters inflates system prompts without measurable benefit because the LLM's attention to injected context degrades with length.</span><span data-zh>我们发现 4000 字符是记忆注入总量的实际最优点。核心记忆（Feedback + User）通常合计不超过 700 字符，留下 3300+ 字符给情境记忆、对话轮次和摘要。低于 3000 字符会完全饿死摘要；高于 6000 字符会膨胀系统提示但没有可衡量的收益，因为 LLM 对注入上下文的注意力会随长度衰减。</span></p>
+
+    <h3><span data-en>How do you prevent the agent from hallucinating memories it was never given?</span><span data-zh>如何防止 Agent 幻觉出从未被给予的记忆？</span></h3>
+    <p><span data-en>Memory injection is append-only to the system prompt — the agent cannot query or modify the memory store. All memories are presented as a structured briefing block with explicit labels, so the model treats them as given context rather than self-generated knowledge. We also never use phrasing like "you remember that..." in the injection; instead we use "User has stated:" or "Prior correction:" to make the provenance unambiguous. In eight months of operation, fabricated-memory incidents have been near zero with this framing.</span><span data-zh>记忆注入是系统提示的仅追加块——Agent 无法查询或修改记忆存储。所有记忆以带有明确标签的结构化简报块呈现，使模型将其视为给定上下文而非自生知识。我们也从不在注入中使用"你记得..."这样的措辞；而是用"用户已声明："或"先前纠正："来使来源无歧义。在八个月运营中，这种框架下虚构记忆事件几乎为零。</span></p>
+
+    <h3><span data-en>When should you migrate from flat-file storage to a database?</span><span data-zh>什么时候应该从文件存储迁移到数据库？</span></h3>
+    <p><span data-en>The trigger is concurrent writes, not data volume. Flat files work well up to hundreds of users because each user's data is isolated to their own directory and the read-all-on-startup pattern stays sub-millisecond. The breakpoint comes when multiple agent processes serve the same user simultaneously — file-level locking becomes fragile. At that point, move to SQLite (single-writer, still file-based, zero-config) before considering PostgreSQL. We have not needed to make this migration yet at our current scale.</span><span data-zh>迁移触发条件是并发写入，而非数据量。文件存储在数百用户以下工作良好，因为每个用户的数据隔离在自己的目录中，启动时全量读取模式保持亚毫秒。临界点出现在多个 Agent 进程同时服务同一用户时——文件级锁定变得脆弱。此时先迁移到 SQLite（单写入者、仍基于文件、零配置），再考虑 PostgreSQL。我们在当前规模下尚未需要进行此迁移。</span></p>
+
+    <h3><span data-en>Can this memory architecture work with multi-agent systems where several agents share context?</span><span data-zh>这个记忆架构能用于多个 Agent 共享上下文的多 Agent 系统吗？</span></h3>
+    <p><span data-en>Yes, but you need a scoping layer. In a multi-agent setup, User and Feedback memories should be scoped to the individual agent-user pair because different agents may receive contradictory corrections for legitimate reasons (e.g., a coding agent and a review agent have different "don't do this" rules). Project and Reference memories can be shared across agents since they describe the environment, not agent behavior. The injection budget must also be per-agent — sharing a single 4000-character budget across three agents leaves each one context-starved.</span><span data-zh>可以，但需要一个作用域层。在多 Agent 设置中，User 和 Feedback 记忆应该限定在单个 Agent-用户对，因为不同 Agent 可能出于正当原因收到矛盾的纠正（例如编码 Agent 和审查 Agent 有不同的"不要这样做"规则）。Project 和 Reference 记忆可以跨 Agent 共享，因为它们描述环境而非 Agent 行为。注入预算也必须是每个 Agent 独立的——三个 Agent 共享单一的 4000 字符预算会导致每个都上下文饥饿。</span></p>
 
     <div class="article-page-footer">
       <p><span data-en>Written by Ming Zhou · 2025</span><span data-zh>作者：Ming Zhou · 2025</span></p>

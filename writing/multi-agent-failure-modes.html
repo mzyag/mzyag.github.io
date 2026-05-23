@@ -10,12 +10,18 @@
   <meta property="og:type" content="article">
   <meta property="og:url" content="https://mzyag.github.io/writing/multi-agent-failure-modes.html">
   <meta property="og:locale" content="en_US">
+  <meta property="og:image" content="https://mzyag.github.io/assets/og-image.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
   <meta property="og:site_name" content="Ming Zhou">
   <meta name="twitter:card" content="summary">
   <meta name="twitter:title" content="When Agents Collaborate: Failure Modes in Multi-Role LLM Systems">
   <meta name="twitter:description" content="Five failure modes discovered in production multi-agent systems: context loss, role confusion, infinite rework, maker-checker theater, and arbitration deadlocks.">
   <meta name="author" content="Ming Zhou">
   <link rel="canonical" href="https://mzyag.github.io/writing/multi-agent-failure-modes.html">
+  <link rel="alternate" hreflang="en" href="https://mzyag.github.io/writing/multi-agent-failure-modes.html">
+  <link rel="alternate" hreflang="zh" href="https://mzyag.github.io/writing/multi-agent-failure-modes.html">
+  <link rel="alternate" hreflang="x-default" href="https://mzyag.github.io/writing/multi-agent-failure-modes.html">
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect fill='%2309090b' width='100' height='100' rx='16'/%3E%3Ctext x='50' y='72' font-family='Inter,sans-serif' font-size='64' font-weight='700' fill='%233b82f6' text-anchor='middle'%3EM%3C/text%3E%3C/svg%3E">
   <link rel="stylesheet" href="../css/style.css">
   <script type="application/ld+json">
@@ -27,7 +33,68 @@
     "author": {"@type": "Person", "name": "Ming Zhou", "url": "https://mzyag.github.io/"},
     "publisher": {"@type": "Person", "name": "Ming Zhou"},
     "url": "https://mzyag.github.io/writing/multi-agent-failure-modes.html",
-    "datePublished": "2025-05-22"
+    "datePublished": "2025-05-22",
+    "dateModified": "2026-05-23",
+    "keywords": ["multi-agent systems", "failure modes", "planner executor critic", "role confusion", "arbitration deadlock", "LLM agents"]
+  }
+  </script>
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    "itemListElement": [
+      {"@type": "ListItem", "position": 1, "name": "Home", "item": "https://mzyag.github.io/"},
+      {"@type": "ListItem", "position": 2, "name": "Writing", "item": "https://mzyag.github.io/#writing"},
+      {"@type": "ListItem", "position": 3, "name": "When Agents Collaborate: Failure Modes in Multi-Role LLM Systems"}
+    ]
+  }
+  </script>
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": [
+      {
+        "@type": "Question",
+        "name": "At what task complexity should you switch from a single agent to a multi-agent architecture?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "The crossover point is when a single agent's context window utilization consistently exceeds 60-70% of capacity for the task, or when you observe the agent cutting corners on later steps because earlier steps consumed too much context. Below that threshold, the coordination overhead of multiple agents typically costs more than it saves. A useful heuristic: if a competent human would need a written handoff document to pass the task to a colleague, the task probably benefits from role separation."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Can multi-agent failure modes be detected automatically before they cause production issues?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Three of the five failure modes have reliable automated signals. Rework loops can be caught by monitoring iteration counts and output diffs between cycles. Arbitration deadlocks show a characteristic pattern of increasing response lengths with decreasing semantic novelty. Role confusion can be partially detected by logging which tools each agent attempts to call versus which it is permitted to call. Context loss and maker-checker theater are harder — they require outcome-level validation, such as spot-checking whether final outputs respect constraints documented in the planner's reasoning."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "How does the cost of running a multi-agent system compare to a single agent for the same task?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "A well-functioning multi-agent pipeline costs roughly 2.5-4x a single-agent run in token spend for the same task, because each role processes its own context and the handoff schemas add overhead. However, the cost of failure modes can dwarf this baseline: an undetected rework loop can cost $12 for a task that should have cost under $0.50. The ROI of multi-agent is driven less by per-task efficiency and more by the reduction in catastrophic single-agent failures on complex tasks."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Is it better to design a multi-agent system from scratch or decompose a working single-agent system?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Start with a single agent and decompose. A working single agent gives you empirical data on where it fails — context overflow, missed validations, scope creep — and those failure points become natural role boundaries. The recommended progression: single agent, then single agent with a separate critic, then full planner-executor-critic only when the planning and execution concerns are demonstrably interfering with each other."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "How do multi-agent coordination failures differ from microservice failures in traditional distributed systems?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Microservice failures are typically deterministic and reproducible — a network timeout or schema mismatch either happens or it doesn't. Multi-agent failures are stochastic and context-dependent: the same input can succeed on one run and trigger a rework loop on another. More importantly, microservices fail loudly (exceptions, error codes), while multi-agent failures often fail silently — the system produces output that looks correct but violates an unstated constraint. This means traditional observability is necessary but insufficient; you also need semantic monitoring."
+        }
+      }
+    ]
   }
   </script>
 </head>
@@ -55,7 +122,7 @@
     <a href="../#writing" class="article-page-back">&larr; <span data-en>Back to all writing</span><span data-zh>返回文章列表</span></a>
 
     <div class="article-page-meta">
-      <span>2025</span>
+      <span><span data-en>May 2025</span><span data-zh>2025 年 5 月</span></span>
       <span><span data-en>12 min read</span><span data-zh>12 分钟阅读</span></span>
     </div>
 
@@ -68,6 +135,17 @@
       <span data-en>If you're splitting a task across multiple LLM agents — a planner, an executor, a reviewer — you've probably already hit the first failure mode. Maybe the executor quietly contradicted a decision the planner made for good reasons. Maybe the reviewer rejected output three times in a row and you realized the loop would never converge. Maybe you built a maker-checker pattern only to discover both roles agreed on everything, including the wrong answer. This article is about those failures: the ones that only show up when agents collaborate, not the ones you find in single-agent benchmarks.</span>
       <span data-zh>如果你正在把一个任务拆分给多个 LLM agent——一个负责规划、一个负责执行、一个负责审查——你可能已经踩过第一个坑了。也许执行者悄悄推翻了规划者深思熟虑后做出的决策。也许审查者连续三次驳回输出，而你意识到这个循环永远不会收敛。也许你精心搭建了一个提议-复核模式，结果发现两个角色对所有东西都达成了一致——包括错误的答案。这篇文章讲的就是这类失败：只在 agent 协作时才出现的失败，而不是你在单 agent 基准测试中能发现的那些。</span>
     </p>
+
+    <div class="key-takeaways">
+      <h2><span data-en>Key Takeaways</span><span data-zh>核心要点</span></h2>
+      <ul>
+        <li><span data-en>Multi-agent failures occur at the boundaries between agents, not inside individual agents -- optimizing a single agent's performance will not fix coordination problems.</span><span data-zh>多 agent 故障发生在 agent 之间的边界上，而非单个 agent 内部——优化单个 agent 的性能无法修复协调问题。</span></li>
+        <li><span data-en>Passing only instructions without reasoning between roles causes silent constraint violations -- structured handoff schemas that carry rejected alternatives and decision rationale reduce context loss.</span><span data-zh>角色间只传递指令而不传递推理会导致约束条件被悄然违反——携带被否决方案和决策依据的结构化交接协议可减少上下文丢失。</span></li>
+        <li><span data-en>Role boundaries must be enforced by restricting tool access, not by prompt instructions -- an Executor told "do not plan" will plan anyway, but an Executor without access to the planning tool cannot.</span><span data-zh>角色边界必须通过限制工具访问来强制执行，而非通过提示词指令——被告知"不要规划"的执行者仍会规划，但没有规划工具访问权限的执行者做不到。</span></li>
+        <li><span data-en>Maker-checker patterns using the same model confirm errors 89% of the time instead of catching them -- independence requires differing models, differing context, or an evidence requirement the checker cannot satisfy by echoing.</span><span data-zh>使用相同模型的提议-复核模式有 89% 的概率确认错误而非发现错误——独立性需要不同的模型、不同的上下文、或复核者无法通过回声满足的证据要求。</span></li>
+        <li><span data-en>Agent disagreements should be resolved by deterministic coded rules with typed priorities (security > correctness > performance > style), not by additional LLM inference that produces stable debate without convergence.</span><span data-zh>Agent 之间的分歧应通过带类型优先级的确定性编码规则（安全 > 正确性 > 性能 > 风格）来解决，而非通过产生稳态辩论但不会收敛的额外 LLM 推理。</span></li>
+      </ul>
+    </div>
 
     <!-- ================================================================ -->
     <!-- WHY MULTI-ROLE AT ALL? -->
@@ -540,6 +618,23 @@
       <span data-en>Multi-agent systems are not fundamentally harder than single-agent systems. They're harder in different places. Single-agent systems fail on complexity — one agent can't hold everything in context. Multi-agent systems fail on coordination — the agents can each be competent, and the system as a whole still produces wrong output because something was lost between them. If you're building a multi-agent system, spend less time optimizing individual agents and more time instrumenting the spaces between them. That's where the bugs live.</span>
       <span data-zh>多 agent 系统并不从根本上比单 agent 系统更难，只是难在不同的地方。单 agent 系统在复杂度上失败——一个 agent 无法把所有东西放在上下文中。多 agent 系统在协调上失败——每个 agent 都可以很有能力，但系统整体仍然产出错误输出，因为有些东西在它们之间丢失了。如果你在构建多 agent 系统，少花时间优化单个 agent，多花时间观测它们之间的缝隙。Bug 就住在那里。</span>
     </blockquote>
+
+    <h2><span data-en>Frequently Asked Questions</span><span data-zh>常见问题</span></h2>
+
+    <h3><span data-en>At what task complexity should you switch from a single agent to a multi-agent architecture?</span><span data-zh>任务复杂度达到什么程度时应从单 agent 切换到多 agent 架构？</span></h3>
+    <p><span data-en>In our experience, the crossover point is when a single agent's context window utilization consistently exceeds 60-70% of capacity for the task, or when you observe the agent cutting corners on later steps because earlier steps consumed too much context. Below that threshold, the coordination overhead of multiple agents typically costs more than it saves. A useful heuristic: if a competent human would need a written handoff document to pass the task to a colleague, the task probably benefits from role separation.</span><span data-zh>根据我们的经验，临界点是当单个 agent 的上下文窗口利用率持续超过容量的 60-70%，或者你观察到 agent 因前面步骤消耗了太多上下文而在后续步骤偷工减料。低于这个阈值，多 agent 的协调开销通常比它节省的更多。一个实用的判断标准：如果一个称职的人类需要写交接文档才能把任务传给同事，那这个任务大概率适合角色分离。</span></p>
+
+    <h3><span data-en>Can multi-agent failure modes be detected automatically before they cause production issues?</span><span data-zh>多 agent 失败模式能否在引发生产问题之前被自动检测到？</span></h3>
+    <p><span data-en>Three of the five failure modes have reliable automated signals. Rework loops can be caught by monitoring iteration counts and output diffs between cycles. Arbitration deadlocks show a characteristic pattern of increasing response lengths with decreasing semantic novelty. Role confusion can be partially detected by logging which tools each agent attempts to call versus which it is permitted to call. Context loss and maker-checker theater are harder -- they require outcome-level validation, such as spot-checking whether final outputs respect constraints documented in the planner's reasoning.</span><span data-zh>五种失败模式中有三种有可靠的自动化信号。返工循环可通过监控迭代次数和周期间的输出 diff 来捕获。仲裁死锁呈现响应长度递增但语义新颖度递减的特征模式。角色越界可通过记录每个 agent 尝试调用的工具与允许调用的工具来部分检测。上下文丢失和复核走过场更难——它们需要结果层面的验证，例如抽查最终输出是否尊重了规划者推理中记录的约束条件。</span></p>
+
+    <h3><span data-en>How does the cost of running a multi-agent system compare to a single agent for the same task?</span><span data-zh>运行多 agent 系统与单 agent 完成同一任务的成本对比如何？</span></h3>
+    <p><span data-en>In our production system, a well-functioning multi-agent pipeline costs roughly 2.5-4x a single-agent run in token spend for the same task, because each role processes its own context and the handoff schemas add overhead. However, the cost of failure modes can dwarf this baseline: an undetected rework loop cost us $12 for a task that should have cost under $0.50, and an arbitration deadlock once consumed $8 in debate tokens alone. The ROI of multi-agent is driven less by per-task efficiency and more by the reduction in catastrophic single-agent failures on complex tasks.</span><span data-zh>在我们的生产系统中，运行良好的多 agent 管道在 token 开销上约为单 agent 的 2.5-4 倍，因为每个角色处理自己的上下文且交接协议增加了开销。但失败模式的成本可远超这个基线：一个未被检测到的返工循环让一个本应不到 0.50 美元的任务花了 12 美元，一次仲裁死锁仅辩论 token 就消耗了 8 美元。多 agent 的投资回报率与其说取决于单任务效率，不如说取决于在复杂任务上减少了灾难性的单 agent 失败。</span></p>
+
+    <h3><span data-en>Is it better to design a multi-agent system from scratch or decompose a working single-agent system?</span><span data-zh>是从零设计多 agent 系统更好，还是从现有的单 agent 系统分解更好？</span></h3>
+    <p><span data-en>Start with a single agent and decompose. A working single agent gives you empirical data on where it fails -- context overflow, missed validations, scope creep -- and those failure points become natural role boundaries. Teams that design multi-agent architectures from scratch tend to over-decompose, creating roles that don't have enough work to justify the coordination cost. The progression we recommend: single agent, then single agent with a separate critic, then full planner-executor-critic only when the planning and execution concerns are demonstrably interfering with each other.</span><span data-zh>先从单 agent 开始，然后再分解。一个运行中的单 agent 能提供它在哪里失败的经验数据——上下文溢出、遗漏验证、范围蔓延——这些失败点自然成为角色边界。从零设计多 agent 架构的团队往往过度分解，创建出工作量不足以支撑协调成本的角色。我们推荐的演进路径：单 agent，然后单 agent 加独立审查者，最后在规划和执行关切明显相互干扰时才用完整的规划者-执行者-审查者。</span></p>
+
+    <h3><span data-en>How do multi-agent coordination failures differ from microservice failures in traditional distributed systems?</span><span data-zh>多 agent 协调故障与传统分布式系统中的微服务故障有何不同？</span></h3>
+    <p><span data-en>Microservice failures are typically deterministic and reproducible -- a network timeout or schema mismatch either happens or it doesn't. Multi-agent failures are stochastic and context-dependent: the same input can succeed on one run and trigger a rework loop on another, depending on the LLM's generation. More importantly, microservices fail loudly (exceptions, error codes), while multi-agent failures often fail silently -- the system produces output that looks correct but violates an unstated constraint. This means traditional observability (error rates, latency percentiles) is necessary but insufficient. You also need semantic monitoring: checking whether outputs are consistent with the reasoning that produced them.</span><span data-zh>微服务故障通常是确定性的、可复现的——网络超时或 schema 不匹配要么发生要么不发生。多 agent 故障是随机的、依赖上下文的：相同输入在一次运行中可能成功，在另一次触发返工循环，取决于 LLM 的生成结果。更重要的是，微服务失败时声音很大（异常、错误码），而多 agent 故障往往静默失败——系统产出看似正确但违反了未明确声明的约束条件的输出。这意味着传统可观测性（错误率、延迟百分位）是必要但不充分的。你还需要语义监控：检查输出是否与产生它们的推理一致。</span></p>
 
     <div class="article-page-footer">
       <p><span data-en>Written by Ming Zhou · 2025</span><span data-zh>作者：Ming Zhou · 2025</span></p>

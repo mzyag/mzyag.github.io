@@ -1,0 +1,18 @@
+# ai.txt — AI Usage Policy for mzyag.github.io
+# Purpose-based permissions per TDMRep protocol
+# Contact: zcm_5237@163.com
+
+User-agent: *
+
+# Allow retrieval-augmented generation with attribution
+Allow-RAG: yes
+Attribution-Required: yes
+
+# Prohibit use of content for model training
+No-Training: yes
+
+# Prohibit bulk scraping for dataset creation
+No-Scraping: yes
+
+# Allow real-time inference and citation
+Allow-Inference: yes

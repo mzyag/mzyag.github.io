@@ -1,0 +1,34 @@
+# Ming Zhou
+
+> Tech Lead and AI platform engineer with 12+ years of experience building production AI Agent systems, distributed platforms, and governance frameworks for regulated financial environments.
+
+## Core Pages
+- [Homepage](https://mzyag.github.io/): Portfolio overview — projects, writing, experience, and contact
+- [Resume (PDF)](https://mzyag.github.io/assets/Ming_Zhou_Resume.pdf): Downloadable resume
+
+## Projects
+- AI Agent Platform — Governable RAG & Agentic Workflows: LangGraph + LlamaIndex + Milvus platform with citation-as-contract, deterministic safety gating, hybrid retrieval with metadata-aware reranking, and replay-based evaluation. 97% citation coverage, 8 business lines.
+- Workflow Automation Agent — Plan-and-Execute Across Internal Systems: Multi-step governed pipelines with least-privilege tool calling, shift-left validation gates, and minimum-disclosure output schemas. 3K–10K runs/month.
+- Decision Support Agent — Maker-Checker & Human-in-the-Loop: Planner/Executor/Critic roles with codified review criteria, role-based arbitration, and auditable replay. 95–99% sign-off coverage.
+
+## Writing
+- [The Enforcement Gap: Why Agent Governance Needs Infrastructure, Not Just Instructions](https://mzyag.github.io/writing/enforcement-architecture.html): Three-layer enforcement architecture (advisory, structural, deterministic) and hook patterns that make governance survive context compaction
+- [Maintaining an Agent's Knowledge Layer: Skills, Memory, and the Governance Gap](https://mzyag.github.io/writing/optimizing-agent-knowledge-layer.html): Audit across 101 skills and 339 episodes — what breaks, evidence-based fixes, and context compaction governance failures
+- [One Harness for Every Agent: Unifying Governance Across Tools and Interfaces](https://mzyag.github.io/writing/from-spec-to-system.html): Three-axis risk classification, dual-mode confirmation gates, proportional delivery reports for multi-agent governance
+- [When Agents Collaborate: Failure Modes in Multi-Role LLM Systems](https://mzyag.github.io/writing/multi-agent-failure-modes.html): Five failure modes in Planner/Executor/Critic systems — context loss, role confusion, infinite rework, maker-checker theater, arbitration deadlocks
+- [From Single-Tenant to Multi-Tenant: Scaling an Agent Platform Across Teams](https://mzyag.github.io/writing/multi-tenant-agent-platform.html): Four isolation layers, per-tenant canary releases, and operational challenges unique to multi-tenant AI agent platforms
+- [Why Deterministic Gating Matters for Production Agents](https://mzyag.github.io/writing/deterministic-gating.html): Four-outcome routing pattern (answer/refuse/citations-only/escalate) and why guardrails alone aren't enough
+- [Three Layers of Evaluation for Agents in Production](https://mzyag.github.io/writing/three-layers-evaluation.html): Component-level, workflow-level, and operational-level evaluation connected by replay-based testing
+- [When Not to Use an LLM](https://mzyag.github.io/writing/when-not-to-use-llm.html): Decision framework for choosing between LLM inference and deterministic code in production systems
+- [Engineering the Harness: Governing Agent Behavior Without Slowing Down Delivery](https://mzyag.github.io/writing/engineering-the-harness.html): Routing, human checkpoints, state persistence, watchdog recovery, and layered memory for production-safe agents
+- [AI-Native Engineering in Practice](https://mzyag.github.io/writing/ai-native-engineering.html): Claude Code, Codex, and Copilot across the full development cycle — and how to help teams adopt AI workflows
+- [Memory Architecture for Production Agents: Beyond the Context Window](https://mzyag.github.io/writing/memory-architecture.html): Three-tier temporal architecture, four-dimension content taxonomy, budget-aware injection, and episode-driven self-improvement loops
+- [Distributed Systems in Practice: Patterns That Survive Production](https://mzyag.github.io/writing/distributed-systems-production.html): Service boundaries, circuit breakers, SLO-based alerting, distributed tracing, saga compensation — patterns that survived regulated financial environments
+
+## About
+- Location: Shanghai, China
+- Experience: 12+ years — Tech Lead/AVP at global financial institution (2019–2025), senior engineer at e-commerce and financial services companies
+- Expertise: AI Agent platforms, RAG, distributed systems, production operations, SRE, governance frameworks
+- Languages: Python, Java, TypeScript
+- Stack: LangGraph, LlamaIndex, Milvus, FastAPI, Spring Boot, Kubernetes, OpenTelemetry
+- GitHub: https://github.com/mzyag
