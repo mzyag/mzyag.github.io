@@ -646,7 +646,6 @@ img { max-width: 100%; display: block; }
   font-size: 1.05rem;
   line-height: 1.7;
   margin-bottom: 48px;
-  max-width: 600px;
 }
 .contact-row {
   display: grid;
