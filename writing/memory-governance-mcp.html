@@ -118,20 +118,20 @@
     <h2><span data-en>Why Prompt-Level Governance Doesn't Work</span><span data-zh>为什么提示词级别的治理不管用</span></h2>
 
     <p>
-      <span data-en>The instinct is to solve this in the prompt: "Don't store PII." "Only write to project files." "Log every access." We tried this. Compliance rates ranged from 70% to 90% depending on context pressure. When the context window is full and the model is compacting earlier messages, advisory rules are the first thing that gets summarized away. You cannot audit a system whose enforcement mechanism is "the model usually remembers to follow the rule."</span>
-      <span data-zh>直觉的做法是在提示词中解决："不要存储 PII。""只写项目文件。""记录每次访问。"我们试过。合规率在 70% 到 90% 之间，取决于上下文压力。当上下文窗口满了、模型在压缩早期消息时，建议性规则是最先被摘要掉的。你无法审计一个执行机制是"模型通常会记得遵守规则"的系统。</span>
+      <span data-en>The instinct is to solve this in the prompt: "Don't store PII." "Only write to project files." "Log every access." We tried this. Anthropic's 2026 agentic coding report draws a sharp line: rules that exist as text in the context achieve 70-90% compliance under normal conditions, degrading further under context pressure. Our own measurement across 47 sessions confirmed ~82% observed compliance for advisory-only governance. The 18% gap clustered around context compaction events — precisely when governance matters most. (We documented the full enforcement gap analysis, including the three-layer enforcement model, in <a href="enforcement-architecture.html">a separate article</a>.)</span>
+      <span data-zh>直觉的做法是在提示词中解决："不要存储 PII。""只写项目文件。""记录每次访问。"我们试过。Anthropic 2026 agentic coding 报告画了一条清晰的线：作为上下文文本存在的规则在正常条件下达到 70-90% 合规率，在上下文压力下进一步退化。我们在 47 个会话中的实测确认仅靠建议性治理的合规率约为 82%。18% 的缺口聚集在上下文压缩事件周围——恰恰是治理最重要的时候。（完整的执行缺口分析和三层执行模型见<a href="enforcement-architecture.html">另一篇文章</a>。）</span>
     </p>
 
     <p>
-      <span data-en>This is a category error. Governance belongs at the boundary — the layer between the agent and storage — not inside the agent's reasoning. A PII filter in the prompt is advisory. A PII filter in the server is deterministic. One works 85% of the time. The other works 100% of the time. In regulated environments, the difference between 85% and 100% is the difference between compliant and not.</span>
-      <span data-zh>这是一个范畴错误。治理属于边界——Agent 和存储之间的层——而不是 Agent 的推理内部。提示词中的 PII 过滤是建议性的。Server 中的 PII 过滤是确定性的。一个 85% 的时间有效。另一个 100% 的时间有效。在受监管环境中，85% 和 100% 的差距就是合规与不合规的差距。</span>
+      <span data-en>The conclusion is structural: governance belongs at the boundary — the layer between the agent and storage — not inside the agent's reasoning. A PII filter in the prompt is advisory. A PII filter in the server is deterministic. In regulated environments, the difference between 82% and 100% is the difference between compliant and not.</span>
+      <span data-zh>结论是结构性的：治理属于边界——Agent 和存储之间的层——而不是 Agent 的推理内部。提示词中的 PII 过滤是建议性的。Server 中的 PII 过滤是确定性的。在受监管环境中，82% 和 100% 的差距就是合规与不合规的差距。</span>
     </p>
 
     <h2><span data-en>Architecture: Policy at the Boundary</span><span data-zh>架构：边界处的策略</span></h2>
 
     <p>
-      <span data-en>We built <a href="https://github.com/mzyag/memory-governance">memory-governance</a>, an open-source MCP server that sits between the AI agent and its memory storage. MCP (Model Context Protocol) is Anthropic's standard for connecting AI tools to external data — think of it as a USB-C port for AI: a standard interface that any compliant client can plug into.</span>
-      <span data-zh>我们构建了 <a href="https://github.com/mzyag/memory-governance">memory-governance</a>，一个开源 MCP Server，位于 AI Agent 和其记忆存储之间。MCP（Model Context Protocol）是 Anthropic 的 AI 工具与外部数据连接标准——把它想象成 AI 的 USB-C 接口：一个任何兼容客户端都能插入的标准接口。</span>
+      <span data-en>We built <a href="https://github.com/mzyag/memory-governance">memory-governance</a>, an open-source MCP server that sits between the AI agent and its memory storage. It implements the deterministic enforcement layer described in our <a href="enforcement-architecture.html">enforcement architecture article</a> — specifically for memory operations. MCP (Model Context Protocol) is Anthropic's standard for connecting AI tools to external data sources and operations. The server acts as a policy boundary: the agent calls tools to interact with memory, and the server enforces rules that the agent doesn't need to know about.</span>
+      <span data-zh>我们构建了 <a href="https://github.com/mzyag/memory-governance">memory-governance</a>，一个开源 MCP Server，位于 AI Agent 和其记忆存储之间。它实现了我们在<a href="enforcement-architecture.html">执行架构文章</a>中描述的确定性执行层——专门用于记忆操作。MCP（Model Context Protocol）是 Anthropic 的 AI 工具连接外部数据源和操作的标准。Server 充当策略边界：Agent 调用工具与记忆交互，Server 执行 Agent 不需要知道的规则。</span>
     </p>
 
     <p>
@@ -186,8 +186,8 @@ audit:
     <h2><span data-en>The Memory Schema</span><span data-zh>记忆 Schema</span></h2>
 
     <p>
-      <span data-en>Memory files use a minimal four-field YAML frontmatter, inspired by the PARA method (Projects, Areas, Resources, Archives) adapted for AI agent memory:</span>
-      <span data-zh>记忆文件使用最小化的四字段 YAML frontmatter，灵感来自 PARA 方法（Projects、Areas、Resources、Archives），适配 AI Agent 记忆：</span>
+      <span data-en>Memory files use a minimal four-field YAML frontmatter. The four-category taxonomy — project, area, feedback, resource — comes from our <a href="memory-architecture.html">memory architecture</a>, which adapts the PARA method (Projects, Areas, Resources, Archives) for AI agent memory. Each category maps to a cognitive science memory type and carries a different governance profile:</span>
+      <span data-zh>记忆文件使用最小化的四字段 YAML frontmatter。四分类体系——project、area、feedback、resource——来自我们的<a href="memory-architecture.html">记忆架构</a>，该架构将 PARA 方法（Projects、Areas、Resources、Archives）适配为 AI Agent 记忆。每个分类映射到一种认知科学记忆类型，并携带不同的治理策略：</span>
     </p>
 
     <pre><code>---
@@ -230,6 +230,50 @@ updated: 2026-05-28
       <span data-zh>Agent 现在拥有六个受治理的工具而非直接文件访问。它不知道也不关心 PII 正在被脱敏、访问正在被记录、旧 episode 正在被归档。它只是调用工具。治理在边界处发生，对 Agent 不可见但在执行上是确定性的。</span>
     </p>
 
+    <h2><span data-en>What It Looks Like in Practice</span><span data-zh>实际效果</span></h2>
+
+    <p>
+      <span data-en>When an agent writes an episode containing PII, the server intercepts it before storage. The agent sends:</span>
+      <span data-zh>当 Agent 写入包含 PII 的 episode 时，Server 在存储前拦截。Agent 发送：</span>
+    </p>
+
+    <pre><code>write_episode(
+  file: "ap-auth-refactor.md",
+  goal: "Deploy auth fix, notify alice@company.com",
+  outcome: "success"
+)</code></pre>
+
+    <p>
+      <span data-en>What reaches disk:</span>
+      <span data-zh>写入磁盘的内容：</span>
+    </p>
+
+    <pre><code>- **2026-05-28** [success] Deploy auth fix, notify [REDACTED:email]</code></pre>
+
+    <p>
+      <span data-en>Meanwhile, the audit log captures the full context — without the original PII, but with the detection record:</span>
+      <span data-zh>同时，审计日志捕获完整上下文——不含原始 PII，但带有检测记录：</span>
+    </p>
+
+    <pre><code>{"timestamp": "2026-05-28T14:32:01Z", "action": "write",
+ "role": "default", "category": "project",
+ "target": "ap-auth-refactor.md", "outcome": "allowed",
+ "pii_detections": ["email:alice@company.com"]}</code></pre>
+
+    <p>
+      <span data-en>If a <code>compliance_officer</code> role tries to write to the same file, the server returns a denial and logs it. No configuration change needed in the agent — the policy file controls everything:</span>
+      <span data-zh>如果 <code>compliance_officer</code> 角色尝试写入同一文件，Server 返回拒绝并记录。Agent 无需任何配置变更——策略文件控制一切：</span>
+    </p>
+
+    <pre><code>{"timestamp": "2026-05-28T14:33:15Z", "action": "write",
+ "role": "compliance_officer", "category": "project",
+ "target": "ap-auth-refactor.md", "outcome": "denied"}</code></pre>
+
+    <p>
+      <span data-en>When episode count exceeds the cap (default: 10), the oldest entries are automatically archived to a separate file, with a summary line replacing them in the active memory. This is the write-path hardening pattern described in our <a href="optimizing-agent-knowledge-layer.html">knowledge layer maintenance article</a> — caps, dedup, and automatic archival to keep signal-to-noise ratio high.</span>
+      <span data-zh>当 episode 数量超过上限（默认：10）时，最早的条目自动归档到独立文件，在活跃记忆中用摘要行替代。这是我们在<a href="optimizing-agent-knowledge-layer.html">知识层维护文章</a>中描述的写路径加固模式——上限、去重和自动归档以保持高信噪比。</span>
+    </p>
+
     <h2><span data-en>What This Doesn't Solve (Yet)</span><span data-zh>目前未解决的问题</span></h2>
 
     <p>
@@ -244,43 +288,22 @@ updated: 2026-05-28
       <li><span data-en><strong>Single-node only.</strong> No multi-agent coordination, no distributed locking, no cross-machine sync. These are real needs for team environments, and they're on the roadmap.</span><span data-zh><strong>仅单节点。</strong>没有多 Agent 协调、没有分布式锁、没有跨机器同步。这些是团队环境的真实需求，在路线图中。</span></li>
     </ul>
 
-    <h2><span data-en>Design Principles</span><span data-zh>设计原则</span></h2>
+    <h2><span data-en>Where This Fits in the Stack</span><span data-zh>在技术栈中的位置</span></h2>
 
     <p>
-      <span data-en>Four principles guided the design, each learned from production failures:</span>
-      <span data-zh>四个原则指导了设计，每个都来自生产中的失败教训：</span>
+      <span data-en>This tool is one piece of a broader agent governance stack we've been building and documenting over eight months. The full picture has three layers, each addressed by a different component:</span>
+      <span data-zh>这个工具是我们八个月来构建和记录的更广泛 Agent 治理栈中的一个组件。完整图景有三层，每层由不同组件解决：</span>
     </p>
 
     <ol>
-      <li><span data-en><strong>Governance at the boundary, not in the prompt.</strong> Advisory rules in the prompt achieve 70-90% compliance. Deterministic enforcement in the server achieves 100%. In regulated environments, only one of those numbers is acceptable.</span><span data-zh><strong>治理在边界，不在提示词。</strong>提示词中的建议性规则达到 70-90% 合规率。Server 中的确定性执行达到 100%。在受监管环境中，只有一个数字是可接受的。</span></li>
-      <li><span data-en><strong>Storage-agnostic.</strong> The governance layer doesn't care what's underneath. Swap flat files for SQLite, S3, or a vector database without changing a single policy rule.</span><span data-zh><strong>存储无关。</strong>治理层不关心底层是什么。把文件换成 SQLite、S3 或向量数据库，无需改变任何策略规则。</span></li>
-      <li><span data-en><strong>Policy as code.</strong> YAML in version control, not buried in UI settings. Reviewable in pull requests. Auditable by compliance teams. Diffable across environments.</span><span data-zh><strong>策略即代码。</strong>YAML 在版本控制中，不是藏在 UI 设置里。在 Pull Request 中可评审。合规团队可审计。跨环境可对比。</span></li>
-      <li><span data-en><strong>Local-first.</strong> Your memory stays on your machine. The server runs locally. No cloud dependency, no third-party data processing, no vendor lock-in.</span><span data-zh><strong>本地优先。</strong>记忆留在你的机器上。Server 在本地运行。无云端依赖、无第三方数据处理、无供应商锁定。</span></li>
+      <li><span data-en><strong>Memory architecture</strong> — how agent memory is structured, categorized, and injected into context. Covered in <a href="memory-architecture.html">Memory Architecture for Production Agents</a>.</span><span data-zh><strong>记忆架构</strong>——Agent 记忆如何结构化、分类和注入上下文。见<a href="memory-architecture.html">生产级 Agent 的记忆架构</a>。</span></li>
+      <li><span data-en><strong>Knowledge maintenance</strong> — how memory degrades over time and how to harden the write path with caps, dedup, and TTL decay. Covered in <a href="optimizing-agent-knowledge-layer.html">Maintaining an Agent's Knowledge Layer</a>.</span><span data-zh><strong>知识维护</strong>——记忆如何随时间退化，以及如何用上限、去重和 TTL 衰减加固写路径。见<a href="optimizing-agent-knowledge-layer.html">维护 Agent 的知识层</a>。</span></li>
+      <li><span data-en><strong>Governance enforcement</strong> — how to make governance deterministic rather than advisory, and why this must happen outside the context window. Covered in <a href="enforcement-architecture.html">The Enforcement Gap</a>. Memory-governance is the open-source implementation of this layer for memory operations.</span><span data-zh><strong>治理执行</strong>——如何让治理从建议性变为确定性，以及为什么这必须在上下文窗口之外发生。见<a href="enforcement-architecture.html">执行缺口</a>。Memory-governance 是这一层在记忆操作上的开源实现。</span></li>
     </ol>
 
-    <h2><span data-en>Who Needs This</span><span data-zh>谁需要这个</span></h2>
-
     <p>
-      <span data-en>If you're a solo developer using Claude Code for personal projects and nothing in your memory files is sensitive — you probably don't. The governance overhead isn't worth it.</span>
-      <span data-zh>如果你是个人开发者，用 Claude Code 做个人项目，记忆文件中没有敏感信息——你可能不需要。治理的开销不值得。</span>
-    </p>
-
-    <p>
-      <span data-en>If any of the following apply, you should care:</span>
-      <span data-zh>如果以下任何一条适用，你应该关注：</span>
-    </p>
-
-    <ul>
-      <li><span data-en>You work in a regulated industry (financial services, healthcare, government)</span><span data-zh>你在受监管行业工作（金融服务、医疗、政府）</span></li>
-      <li><span data-en>Your agent memory contains credentials, API keys, or connection strings</span><span data-zh>你的 Agent 记忆中包含凭证、API Key 或连接字符串</span></li>
-      <li><span data-en>Multiple people or agents share a memory directory</span><span data-zh>多人或多个 Agent 共享记忆目录</span></li>
-      <li><span data-en>You need to answer "what did the agent know at time T?" for audit purposes</span><span data-zh>你需要为审计目的回答"Agent 在时间 T 时知道什么？"</span></li>
-      <li><span data-en>Your compliance team has started asking questions about AI data handling</span><span data-zh>你的合规团队已经开始询问 AI 数据处理的问题</span></li>
-    </ul>
-
-    <p>
-      <span data-en>The project is open source under the MIT license: <a href="https://github.com/mzyag/memory-governance">github.com/mzyag/memory-governance</a>. Contributions, issues, and feedback are welcome.</span>
-      <span data-zh>项目以 MIT 许可证开源：<a href="https://github.com/mzyag/memory-governance">github.com/mzyag/memory-governance</a>。欢迎贡献、提 issue 和反馈。</span>
+      <span data-en>The project is open source under the MIT license: <a href="https://github.com/mzyag/memory-governance">github.com/mzyag/memory-governance</a>. Policy-as-code in YAML, local-first with no cloud dependency, and storage-agnostic by design — swap the flat-file backend for SQLite or S3 without changing a single policy rule.</span>
+      <span data-zh>项目以 MIT 许可证开源：<a href="https://github.com/mzyag/memory-governance">github.com/mzyag/memory-governance</a>。策略即代码（YAML）、本地优先无云端依赖、存储无关——把文件后端换成 SQLite 或 S3 无需改变任何策略规则。</span>
     </p>
 
     <blockquote>
