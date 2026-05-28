@@ -34,7 +34,7 @@
     "publisher": {"@type": "Person", "name": "Ming Zhou"},
     "url": "https://mzyag.github.io/writing/optimizing-agent-knowledge-layer.html",
     "datePublished": "2026-05-22",
-    "dateModified": "2026-05-23",
+    "dateModified": "2026-05-28",
     "keywords": ["agent knowledge", "skill management", "episodic memory", "knowledge governance", "agent maintenance"]
   }
   </script>
@@ -243,6 +243,33 @@
       <span data-zh>候选规则在提升前经过人工审核——系统提议，人类决定。这呼应了野中的 SECI 知识管理循环（1994）：隐性知识（episode）被外化为显性规则，Agent 加载整合后的记忆时再被内化。人工审核门控防止系统将噪音提升为持久规则。</span>
     </p>
 
+    <h2><span data-en>Hardening the Write Path: Caps, Dedup, and Decay</span><span data-zh>硬化写入路径：上限、去重与衰减</span></h2>
+
+    <p>
+      <span data-en>Async consolidation handles the batch cleanup. But between consolidation runs, the write path itself needs per-write guards — otherwise you're mopping the floor while the faucet is still running.</span>
+      <span data-zh>异步整合处理批量清理。但在两次整合之间，写入路径本身需要逐条写入的防护——否则你是在水龙头还开着的时候拖地。</span>
+    </p>
+
+    <p>
+      <span data-en>We added three mechanisms, each addressing a different entropy vector:</span>
+      <span data-zh>我们添加了三个机制，各自应对不同的熵向量：</span>
+    </p>
+
+    <p>
+      <span data-en><strong>Episode cap with overflow archival.</strong> Each memory file keeps at most 10 episode entries. When the 11th arrives, the pipeline compacts: oldest entries move to an <code>episodes/</code> archive directory, and a one-line summary replaces them in the active file ("Archive: 42 earlier episodes, 2025-03 to 2026-04. 35 success, 4 partial, 3 failure."). The cap of 10 sits inside the 5–15 sweet spot that cognitive science research consistently identifies as the working memory range — Cowan's (2001) revision of Miller's 7±2, and LlamaIndex's default 50-fact cap for extracted memories both point to the same region. Smaller caps force more frequent archival but keep the active file scannable in a single pass. We chose 10 because it's roughly two weeks of active project history — long enough to see patterns, short enough that the agent isn't reading stale context every session.</span>
+      <span data-zh><strong>Episode 上限 + 溢出归档。</strong>每个记忆文件最多保留 10 条 episode。第 11 条到达时，管道执行压缩：最旧的条目移入 <code>episodes/</code> 归档目录，活跃文件中用一行摘要替代（"Archive: 42 earlier episodes, 2025-03 to 2026-04. 35 success, 4 partial, 3 failure."）。10 条上限处于认知科学研究反复确认的工作记忆区间 5–15 之内——Cowan（2001）对 Miller 7±2 的修正，以及 LlamaIndex 提取记忆的默认 50 条上限，都指向同一个区域。更小的上限意味着更频繁的归档，但保证活跃文件可以一次扫完。我们选 10 是因为它大约覆盖两周的活跃项目历史——足以发现模式，又不至于每次会话都让 Agent 读到过时上下文。</span>
+    </p>
+
+    <p>
+      <span data-en><strong>Write-time deduplication.</strong> Before appending an episode, the pipeline checks whether the first 60 characters of the formatted entry already exist in the file. If they do, the write is silently skipped. This catches the most common duplication vector: the same task captured twice due to a pipeline retry or a resumed conversation re-running the post-task hook. It's deliberately conservative — 60 characters covers the date, outcome tag, and enough of the goal text to identify duplicates without false-positiving on legitimately different episodes that happen to share a date.</span>
+      <span data-zh><strong>写入时去重。</strong>追加 episode 前，管道检查格式化条目的前 60 个字符是否已存在于文件中。如果存在，写入被静默跳过。这捕获了最常见的重复来源：由于管道重试或恢复会话重新运行 post-task hook 导致同一任务被捕获两次。这个策略是刻意保守的——60 个字符覆盖了日期、结果标签和足够的 goal 文本来识别重复，但不会对碰巧同一天的合法不同 episode 产生误判。</span>
+    </p>
+
+    <p>
+      <span data-en><strong>Insight TTL decay.</strong> The recommendation engine aggregates episodes into insight records with a confidence score. Without intervention, a strategy that failed repeatedly six months ago — but might work fine today with a different model or updated codebase — stays permanently depressed in rankings. This is the self-reinforcing error anti-pattern identified in recent memory system surveys (arxiv:2603.07670): the agent concludes "approach X always fails," never retests, and never collects contradicting evidence. Our fix: insights older than 90 days without new activity lose 5 confidence points per additional 30-day period, capped at −25. This doesn't delete old insights — it gradually demotes them so that fresh evidence gets a fair hearing. Combined with the existing <code>review --cleanup --ttl-days 90</code> command for manual purging of single-use insights, this creates a two-speed staleness defense: automatic decay for ranking, manual cleanup for deletion.</span>
+      <span data-zh><strong>Insight TTL 衰减。</strong>推荐引擎将 episode 聚合为带置信分数的 insight 记录。如果不干预，一个六个月前反复失败的策略——可能在今天换了模型或更新了代码库后完全可行——会永久被压低排名。这正是近期记忆系统综述（arxiv:2603.07670）识别的自我强化错误反模式：Agent 得出"方法 X 总是失败"的结论，不再测试，也不会收集到矛盾证据。我们的修复：超过 90 天没有新活动的 insight，每多 30 天扣 5 分置信度，最多扣 25 分。这不会删除旧 insight——而是逐步降低其排名，让新证据有公平竞争的机会。结合已有的 <code>review --cleanup --ttl-days 90</code> 命令用于手动清除一次性 insight，这形成了双速过期防御：自动衰减用于排序，手动清理用于删除。</span>
+    </p>
+
     <h2><span data-en>Write Scoping: Not All Memory Should Be Equally Writable</span><span data-zh>写权限作用域：不是所有记忆都应该等同可写</span></h2>
 
     <p>
@@ -253,6 +280,33 @@
     <p>
       <span data-en>The fix: a metadata field (<code>access: readwrite</code> vs <code>readonly</code>) on each memory file, checked at planning time before execution. Active project files are writable; everything else is read-only. Same principle as database permissions — write access should match the volatility of the data, not the convenience of the writer.</span>
       <span data-zh>修复：每个记忆文件上加一个元数据字段（<code>access: readwrite</code> vs <code>readonly</code>），在规划阶段、执行之前检查。活跃项目文件可写；其他全部只读。和数据库权限同一个原则——写权限应该匹配数据的易变性，而不是写入者的便利性。</span>
+    </p>
+
+    <h2><span data-en>Cross-Model Portability: One Memory, Many Agents</span><span data-zh>跨模型可移植性：一份记忆，多个 Agent</span></h2>
+
+    <p>
+      <span data-en>A memory system tied to one tool is a silo. We use Claude Code, Cursor, Windsurf, Copilot, Codex CLI, and Cline in the same workspace, sometimes in the same week. If each tool maintains its own memory format, lessons learned in one tool don't transfer to the next — and you're back to the goldfish problem, just across tools instead of across sessions.</span>
+      <span data-zh>绑定单一工具的记忆系统就是信息孤岛。我们在同一个工作区使用 Claude Code、Cursor、Windsurf、Copilot、Codex CLI 和 Cline，有时同一周就换好几个。如果每个工具维护自己的记忆格式，在一个工具中学到的教训不会迁移到下一个——你又回到了七秒记忆问题，只不过不是跨会话，而是跨工具。</span>
+    </p>
+
+    <p>
+      <span data-en>The fix is an adapter pattern. A single specification file — <code>AGENT_BOOTSTRAP.md</code> — defines the memory schema, storage location, read/write rules, and the post-task capture pipeline. Each tool gets a thin adapter file that says nothing except "read AGENT_BOOTSTRAP.md and follow it": <code>CLAUDE.md</code> for Claude Code, <code>.cursorrules</code> for Cursor, <code>.windsurfrules</code> for Windsurf, <code>.clinerules</code> for Cline, <code>copilot-instructions.md</code> for Copilot, <code>CONVENTIONS.md</code> for Aider and generic tools. The adapters are 3–5 lines each. The specification is 340 lines and lives in one place.</span>
+      <span data-zh>修复方案是适配器模式。一个规范文件——<code>AGENT_BOOTSTRAP.md</code>——定义记忆 schema、存储位置、读写规则和任务后捕获管道。每个工具得到一个薄适配器文件，只说一句话——"读 AGENT_BOOTSTRAP.md 并遵循"：Claude Code 用 <code>CLAUDE.md</code>、Cursor 用 <code>.cursorrules</code>、Windsurf 用 <code>.windsurfrules</code>、Cline 用 <code>.clinerules</code>、Copilot 用 <code>copilot-instructions.md</code>、Aider 和通用工具用 <code>CONVENTIONS.md</code>。适配器每个 3-5 行。规范 340 行，存放在唯一位置。</span>
+    </p>
+
+    <p>
+      <span data-en>A practical detail that matters: the memory directory lives under a Claude Code–specific path (<code>~/.claude/projects/...</code>). Other tools can't find it by convention. A symlink at <code>.memory</code> in the workspace root resolves this — every tool can read <code>.memory/MEMORY.md</code> regardless of its native config path conventions.</span>
+      <span data-zh>一个重要的实际细节：记忆目录位于 Claude Code 专属路径下（<code>~/.claude/projects/...</code>）。其他工具按照各自的约定找不到。工作区根目录下的 <code>.memory</code> 符号链接解决了这个问题——每个工具都可以读取 <code>.memory/MEMORY.md</code>，无论其原生配置路径约定如何。</span>
+    </p>
+
+    <p>
+      <span data-en>Not all tools have the same capabilities. Claude Code can read files, run commands, edit files, and interact across multiple turns. Cursor in tab mode can only read files. A one-size-fits-all harness would either over-promise (expecting command execution from a read-only tool) or under-use (not running the capture pipeline when the tool can). We solved this with a three-tier execution model that each tool self-selects based on its capabilities: <strong>Tier 1</strong> (full harness — read, write, execute, multi-turn) runs the complete governance pipeline including risk classification and post-task capture. <strong>Tier 2</strong> (memory + pipeline — read, write, execute but single-shot) reads memory, does the task, runs the capture scripts. <strong>Tier 3</strong> (read-only) loads memory as passive context and outputs the capture commands for the user to run manually. The tier assignment is automatic — the tool assesses its own capabilities at session start without asking the user.</span>
+      <span data-zh>不是所有工具都有同样的能力。Claude Code 可以读文件、运行命令、编辑文件、跨轮次交互。Cursor 在 tab 模式下只能读文件。统一规格的 harness 要么过度承诺（期望只读工具执行命令）要么利用不足（工具明明能运行捕获管道却不运行）。我们用三级执行模型解决了这个问题，每个工具根据自身能力自动选择：<strong>Tier 1</strong>（完整 harness——读、写、执行、多轮）运行完整的治理管道，包括风险分类和任务后捕获。<strong>Tier 2</strong>（记忆 + 管道——读、写、执行但单次）读取记忆、执行任务、运行捕获脚本。<strong>Tier 3</strong>（只读）将记忆作为被动上下文加载，输出捕获命令供用户手动运行。级别分配是自动的——工具在会话开始时自评能力，无需询问用户。</span>
+    </p>
+
+    <p>
+      <span data-en>The schema itself also needed simplification for cross-model use. The original frontmatter had 10+ fields including staleness timestamps, access control flags, and sync metadata. Different AI models interpreted optional fields inconsistently — some would hallucinate values for fields they didn't understand, others would silently drop them. We reduced to four mandatory fields: <code>name</code> (kebab-case slug matching the filename), <code>description</code> (one-line summary for relevance matching), <code>category</code> (project, area, feedback, or resource), and <code>updated</code> (date, auto-maintained by the pipeline). Everything else is either derived from the category (permissions, staleness rules) or handled by the pipeline scripts (episode archival, sync cursors). Fewer fields means fewer misinterpretation vectors.</span>
+      <span data-zh>Schema 本身也需要为跨模型使用而简化。原始 frontmatter 有 10 多个字段，包括过期时间戳、访问控制标志和同步元数据。不同 AI 模型对可选字段的解释不一致——有些会为不理解的字段幻觉出值，有些会静默丢弃。我们缩减到四个必填字段：<code>name</code>（与文件名匹配的 kebab-case slug）、<code>description</code>（用于相关性匹配的一行摘要）、<code>category</code>（project、area、feedback 或 resource）和 <code>updated</code>（日期，由管道自动维护）。其余要么从 category 推导（权限、过期规则），要么由管道脚本处理（episode 归档、同步游标）。字段越少，误解向量越少。</span>
     </p>
 
     <h2><span data-en>Gate Amnesia: The Failure Mode Nobody Warned Us About</span><span data-zh>门控失忆：没人提醒过我们的失败模式</span></h2>
@@ -291,7 +345,8 @@
 
     <ul>
       <li><span data-en><strong>Instructions:</strong> 9,500 &rarr; 6,841 lines (28% reduction). 63 of 101 skills gained citable authoritative sources. 26 bloat violations &rarr; 0. ~29,000 tokens freed per full skill load.</span><span data-zh><strong>指令：</strong>9,500 → 6,841 行（减少 28%）。101 个技能中 63 个获得了可引用的权威来源。26 个膨胀违规 → 0。每次全量加载节省约 29,000 token。</span></li>
-      <li><span data-en><strong>Memory:</strong> largest project went from 209 raw episodes to 9 distilled rules. Dedup eliminated exact duplicates across 339 episodes. Async consolidation pipeline operational with human-in-the-loop promotion.</span><span data-zh><strong>记忆：</strong>最大项目从 209 个原始 episode 降至 9 条提炼规则。去重消除了 339 个 episode 中的完全重复。异步整合管道已运行，规则提升需人工审核。</span></li>
+      <li><span data-en><strong>Memory:</strong> largest project went from 209 raw episodes to 9 distilled rules. Dedup eliminated exact duplicates across 339 episodes. Async consolidation pipeline operational with human-in-the-loop promotion. Write-path hardening added: episode cap at 10 per file with overflow archival, write-time dedup, and insight TTL decay (−5 confidence per 30 days past 90-day threshold, capped at −25).</span><span data-zh><strong>记忆：</strong>最大项目从 209 个原始 episode 降至 9 条提炼规则。去重消除了 339 个 episode 中的完全重复。异步整合管道已运行，规则提升需人工审核。写入路径硬化新增：每文件 episode 上限 10 条 + 溢出归档、写入时去重、insight TTL 衰减（超过 90 天阈值后每 30 天扣 5 分置信度，上限 −25）。</span></li>
+      <li><span data-en><strong>Portability:</strong> memory frontmatter simplified from 10+ fields to 4. Six tool-specific adapter files point to a single 340-line specification. Symlink provides tool-agnostic access. Three-tier execution model auto-selects based on tool capabilities.</span><span data-zh><strong>可移植性：</strong>记忆 frontmatter 从 10+ 字段精简到 4 个。六个工具专属适配器文件指向同一份 340 行规范。符号链接提供工具无关的访问。三级执行模型根据工具能力自动选择。</span></li>
       <li><span data-en><strong>Governance:</strong> zero gate-amnesia incidents since deploying the two-layer hook defense. Advisory compliance alone was 70-90%; with the deterministic layer, observed compliance is 100%.</span><span data-zh><strong>治理：</strong>部署两层 hook 防御以来，零门控失忆事件。仅靠建议性指令合规率 70-90%；加上确定性层后，观测合规率 100%。</span></li>
     </ul>
 
@@ -303,8 +358,8 @@
     </p>
 
     <p>
-      <span data-en><strong>Consolidation quality.</strong> The async consolidation pipeline finds recurring patterns and proposes candidate rules, but "recurring" doesn't always mean "correct." We've seen cases where the same mistake was repeated 5 times — a genuine anti-pattern, not a rule to promote. The human review gate catches this, but we'd like the system to distinguish "this keeps happening because it works" from "this keeps happening because we keep getting it wrong."</span>
-      <span data-zh><strong>整合质量。</strong>异步整合管道能发现重复模式并提议候选规则，但"重复"并不总意味着"正确"。我们见过同一个错误重复 5 次的情况——那是真正的反模式，不是应该提升的规则。人工审核门控能拦住这种情况，但我们希望系统能区分"这反复发生因为它有效"和"这反复发生因为我们一直犯同样的错"。</span>
+      <span data-en><strong>Consolidation quality.</strong> The async consolidation pipeline finds recurring patterns and proposes candidate rules, but "recurring" doesn't always mean "correct." We've seen cases where the same mistake was repeated 5 times — a genuine anti-pattern, not a rule to promote. The human review gate catches this, but we'd like the system to distinguish "this keeps happening because it works" from "this keeps happening because we keep getting it wrong." The insight TTL decay helps partially — stale failure patterns lose ranking weight over time — but it's a blunt instrument. A confidence score that factors in outcome polarity (recurring successes vs. recurring failures) would be more precise.</span>
+      <span data-zh><strong>整合质量。</strong>异步整合管道能发现重复模式并提议候选规则，但"重复"并不总意味着"正确"。我们见过同一个错误重复 5 次的情况——那是真正的反模式，不是应该提升的规则。人工审核门控能拦住这种情况，但我们希望系统能区分"这反复发生因为它有效"和"这反复发生因为我们一直犯同样的错"。Insight TTL 衰减部分缓解了这个问题——过时的失败模式会逐步失去排名权重——但这是钝器。一个考虑结果极性（重复成功 vs 重复失败）的置信分数会更精确。</span>
     </p>
 
     <p>
@@ -327,6 +382,8 @@
       <li><span data-en><strong>Audit episodic memory for signal-to-noise.</strong> If any project has more than ~50 episodes, check how many are redundant variations of the same lesson. Distill recurring patterns (3+ occurrences) into rules; archive the rest.</span><span data-zh><strong>审计情景记忆的信噪比。</strong>如果任何项目超过约 50 个 episode，检查有多少是同一教训的冗余变体。将重复模式（出现 3 次以上）提炼为规则；归档其余。</span></li>
       <li><span data-en><strong>Scope write access by volatility.</strong> Active project logs should be freely writable. Curated governance rules and validated best practices should be read-only to the agent. Match write permissions to data volatility, not writer convenience.</span><span data-zh><strong>按易变性分配写权限。</strong>活跃项目日志应该可自由写入。策展的治理规则和已验证的最佳实践对 Agent 应为只读。写权限匹配数据易变性，而非写入者便利性。</span></li>
       <li><span data-en><strong>Test governance rules against context compaction.</strong> Run a session long enough to trigger compaction. Does the agent still follow your pre-task gates afterward? If not, add deterministic enforcement (hooks, middleware) outside the context window.</span><span data-zh><strong>对上下文压缩测试治理规则。</strong>运行一个足够长的会话以触发压缩。Agent 之后还遵循你的任务前门控吗？如果不是，在上下文窗口之外添加确定性执行（hooks、中间件）。</span></li>
+      <li><span data-en><strong>Guard the write path, not just the read path.</strong> Cap episode logs per file (10 is a good default). Add write-time dedup to prevent pipeline retries from creating duplicates. Apply TTL decay to recommendation scores so stale insights don't permanently suppress newer evidence.</span><span data-zh><strong>保护写入路径，不只是读取路径。</strong>对每个文件设置 episode 上限（10 是不错的默认值）。添加写入时去重防止管道重试产生重复。对推荐分数应用 TTL 衰减，防止过时 insight 永久压制新证据。</span></li>
+      <li><span data-en><strong>Design for tool migration from day one.</strong> If you use more than one AI coding tool, put your memory schema in a single specification file and write thin adapters for each tool. Keep frontmatter minimal — every optional field is a misinterpretation vector when a new model reads it. A symlink from the workspace root to the memory directory saves you from tool-specific path conventions.</span><span data-zh><strong>从第一天就为工具迁移设计。</strong>如果你使用不止一个 AI 编码工具，把记忆 schema 放在一个规范文件中，为每个工具写薄适配器。保持 frontmatter 最小——每个可选字段在新模型读取时都是一个误解向量。从工作区根目录到记忆目录的符号链接免除了工具专属路径约定的困扰。</span></li>
     </ol>
 
     <blockquote>

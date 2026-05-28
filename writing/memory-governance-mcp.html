@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="en" data-lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Your Agent Remembers Your Passwords: Building a Governance Layer for AI Memory — Ming Zhou</title>
+  <meta name="description" content="AI agents now have persistent memory — but no access control, no audit trail, no PII protection. Memory Governance is an open-source MCP server that enforces policy at the storage boundary.">
+  <meta property="og:title" content="Your Agent Remembers Your Passwords: Building a Governance Layer for AI Memory — Ming Zhou">
+  <meta property="og:description" content="AI agents now have persistent memory — but no access control, no audit trail, no PII protection. Memory Governance is an open-source MCP server that enforces policy at the storage boundary.">
+  <meta property="og:type" content="article">
+  <meta property="og:url" content="https://mzyag.github.io/writing/memory-governance-mcp.html">
+  <meta property="og:locale" content="en_US">
+  <meta property="og:image" content="https://mzyag.github.io/assets/og-image.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:site_name" content="Ming Zhou">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="Your Agent Remembers Your Passwords: Building a Governance Layer for AI Memory">
+  <meta name="twitter:description" content="AI agents now have persistent memory — but no access control, no audit trail, no PII protection. Memory Governance is an open-source MCP server that enforces policy at the storage boundary.">
+  <meta name="author" content="Ming Zhou">
+  <link rel="canonical" href="https://mzyag.github.io/writing/memory-governance-mcp.html">
+  <link rel="alternate" hreflang="en" href="https://mzyag.github.io/writing/memory-governance-mcp.html">
+  <link rel="alternate" hreflang="zh" href="https://mzyag.github.io/writing/memory-governance-mcp.html">
+  <link rel="alternate" hreflang="x-default" href="https://mzyag.github.io/writing/memory-governance-mcp.html">
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect fill='%2309090b' width='100' height='100' rx='16'/%3E%3Ctext x='50' y='72' font-family='Inter,sans-serif' font-size='64' font-weight='700' fill='%233b82f6' text-anchor='middle'%3EM%3C/text%3E%3C/svg%3E">
+  <link rel="stylesheet" href="../css/style.css">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "Article",
+    "headline": "Your Agent Remembers Your Passwords: Building a Governance Layer for AI Memory",
+    "description": "AI agents now have persistent memory — but no access control, no audit trail, no PII protection. Memory Governance is an open-source MCP server that enforces policy at the storage boundary.",
+    "author": {"@type": "Person", "name": "Ming Zhou", "url": "https://mzyag.github.io/"},
+    "publisher": {"@type": "Person", "name": "Ming Zhou"},
+    "url": "https://mzyag.github.io/writing/memory-governance-mcp.html",
+    "datePublished": "2026-05-28",
+    "dateModified": "2026-05-28",
+    "keywords": ["AI agent", "memory governance", "MCP server", "access control", "PII redaction", "audit trail", "compliance"]
+  }
+  </script>
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    "itemListElement": [
+      {"@type": "ListItem", "position": 1, "name": "Home", "item": "https://mzyag.github.io/"},
+      {"@type": "ListItem", "position": 2, "name": "Writing", "item": "https://mzyag.github.io/#writing"},
+      {"@type": "ListItem", "position": 3, "name": "Your Agent Remembers Your Passwords"}
+    ]
+  }
+  </script>
+</head>
+<body>
+
+  <nav class="nav scrolled" id="nav">
+    <div class="nav-inner">
+      <a class="nav-logo" href="../">MZ<span class="nav-logo-dot">.</span></a>
+      <div class="nav-links" id="navLinks">
+        <a href="../#projects"><span data-en>Projects</span><span data-zh>项目</span></a>
+        <a href="../#writing"><span data-en>Writing</span><span data-zh>文章</span></a>
+        <a href="../#about"><span data-en>About</span><span data-zh>关于</span></a>
+        <a href="../#contact"><span data-en>Contact</span><span data-zh>联系</span></a>
+        <button class="lang-toggle" id="langToggle" aria-label="Toggle language">
+          <span data-en>中文</span><span data-zh>EN</span>
+        </button>
+      </div>
+      <button class="nav-hamburger" id="navHamburger" aria-label="Menu">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+  </nav>
+
+  <main class="article-page">
+    <a href="../#writing" class="article-page-back">&larr; <span data-en>Back to all writing</span><span data-zh>返回文章列表</span></a>
+
+    <div class="article-page-meta">
+      <span><span data-en>May 2026</span><span data-zh>2026 年 5 月</span></span>
+      <span><span data-en>10 min read</span><span data-zh>10 分钟阅读</span></span>
+    </div>
+
+    <h1>
+      <span data-en>Your Agent Remembers Your Passwords: Building a Governance Layer for AI Memory</span>
+      <span data-zh>你的 Agent 记住了你的密码：为 AI 记忆构建治理层</span>
+    </h1>
+
+    <p class="article-lead">
+      <span data-en>AI coding assistants now have persistent memory. Claude Code writes to <code>~/.claude/projects/</code>. Cursor stores context in <code>.cursor/</code>. Copilot retains session knowledge. This is powerful — and nobody is governing it. There is no access control, no audit trail, no retention policy, and no PII protection. This article describes why that matters, and an open-source MCP server we built to fix it.</span>
+      <span data-zh>AI 编码助手现在拥有持久化记忆。Claude Code 写入 <code>~/.claude/projects/</code>。Cursor 在 <code>.cursor/</code> 中存储上下文。Copilot 保留会话知识。这很强大——但没有人在治理它。没有访问控制、没有审计追踪、没有留存策略、没有 PII 保护。本文描述为什么这很重要，以及我们构建的一个开源 MCP Server 来解决它。</span>
+    </p>
+
+    <h2><span data-en>The Problem Is Concrete, Not Hypothetical</span><span data-zh>问题是具体的，不是假设的</span></h2>
+
+    <p>
+      <span data-en>After eight months of running AI agents in a regulated financial services environment, we cataloged four governance failures that kept recurring:</span>
+      <span data-zh>在受监管的金融服务环境中运行 AI Agent 八个月后，我们编录了四个反复出现的治理失败：</span>
+    </p>
+
+    <p>
+      <span data-en><strong>No access control.</strong> Every tool that can read the memory directory sees everything: database connection strings captured in episode logs, user behavioral corrections, compliance review notes. A debugging tool and a code generation tool have identical read access — there's no concept of "need to know."</span>
+      <span data-zh><strong>没有访问控制。</strong>任何能读取记忆目录的工具都能看到一切：episode 日志中捕获的数据库连接字符串、用户行为纠正记录、合规审查备注。调试工具和代码生成工具有完全相同的读取权限——不存在"需要知道"的概念。</span>
+    </p>
+
+    <p>
+      <span data-en><strong>No audit trail.</strong> When a regulator asks "what did the agent know when it generated that code?", you cannot answer. The memory files exist, but there's no record of which role accessed what, when, or whether access was even authorized. In financial services, this isn't a nice-to-have — it's a compliance gap.</span>
+      <span data-zh><strong>没有审计追踪。</strong>当监管机构问"Agent 生成那段代码时知道什么？"时，你无法回答。记忆文件存在，但没有记录哪个角色在什么时候访问了什么，甚至访问是否被授权。在金融服务中，这不是锦上添花——这是合规缺口。</span>
+    </p>
+
+    <p>
+      <span data-en><strong>No retention policy.</strong> An email address captured in a task description six months ago is still sitting in a memory file. A project context from a completed engagement is still loaded into every new session. Nothing expires, nothing archives, nothing cleans itself up.</span>
+      <span data-zh><strong>没有留存策略。</strong>六个月前在任务描述中捕获的邮箱地址仍然存在于记忆文件中。已完成项目的上下文仍然在每个新会话中被加载。没有东西会过期、归档或自我清理。</span>
+    </p>
+
+    <p>
+      <span data-en><strong>No PII protection.</strong> When a developer writes "send the report to alice@company.com and cc bob@partner.org", both addresses are stored verbatim in the memory file. The agent didn't choose to store PII — it's an artifact of how memory capture works. But the result is the same: unredacted personal data in flat files with no access control.</span>
+      <span data-zh><strong>没有 PII 保护。</strong>当开发者写"把报告发给 alice@company.com 并抄送 bob@partner.org"时，两个地址都原样存储在记忆文件中。Agent 并非主动选择存储 PII——这是记忆捕获工作方式的副产品。但结果是一样的：未脱敏的个人数据存在于没有访问控制的文件中。</span>
+    </p>
+
+    <h2><span data-en>Why Prompt-Level Governance Doesn't Work</span><span data-zh>为什么提示词级别的治理不管用</span></h2>
+
+    <p>
+      <span data-en>The instinct is to solve this in the prompt: "Don't store PII." "Only write to project files." "Log every access." We tried this. Compliance rates ranged from 70% to 90% depending on context pressure. When the context window is full and the model is compacting earlier messages, advisory rules are the first thing that gets summarized away. You cannot audit a system whose enforcement mechanism is "the model usually remembers to follow the rule."</span>
+      <span data-zh>直觉的做法是在提示词中解决："不要存储 PII。""只写项目文件。""记录每次访问。"我们试过。合规率在 70% 到 90% 之间，取决于上下文压力。当上下文窗口满了、模型在压缩早期消息时，建议性规则是最先被摘要掉的。你无法审计一个执行机制是"模型通常会记得遵守规则"的系统。</span>
+    </p>
+
+    <p>
+      <span data-en>This is a category error. Governance belongs at the boundary — the layer between the agent and storage — not inside the agent's reasoning. A PII filter in the prompt is advisory. A PII filter in the server is deterministic. One works 85% of the time. The other works 100% of the time. In regulated environments, the difference between 85% and 100% is the difference between compliant and not.</span>
+      <span data-zh>这是一个范畴错误。治理属于边界——Agent 和存储之间的层——而不是 Agent 的推理内部。提示词中的 PII 过滤是建议性的。Server 中的 PII 过滤是确定性的。一个 85% 的时间有效。另一个 100% 的时间有效。在受监管环境中，85% 和 100% 的差距就是合规与不合规的差距。</span>
+    </p>
+
+    <h2><span data-en>Architecture: Policy at the Boundary</span><span data-zh>架构：边界处的策略</span></h2>
+
+    <p>
+      <span data-en>We built <a href="https://github.com/mzyag/memory-governance">memory-governance</a>, an open-source MCP server that sits between the AI agent and its memory storage. MCP (Model Context Protocol) is Anthropic's standard for connecting AI tools to external data — think of it as a USB-C port for AI: a standard interface that any compliant client can plug into.</span>
+      <span data-zh>我们构建了 <a href="https://github.com/mzyag/memory-governance">memory-governance</a>，一个开源 MCP Server，位于 AI Agent 和其记忆存储之间。MCP（Model Context Protocol）是 Anthropic 的 AI 工具与外部数据连接标准——把它想象成 AI 的 USB-C 接口：一个任何兼容客户端都能插入的标准接口。</span>
+    </p>
+
+    <p>
+      <span data-en>The server exposes six tools — <code>list_memories</code>, <code>read_memory</code>, <code>write_episode</code>, <code>create_memory</code>, <code>check_staleness</code>, and <code>query_audit_log</code> — that replace direct file access with governed operations. Every call passes through four enforcement layers:</span>
+      <span data-zh>Server 暴露六个工具——<code>list_memories</code>、<code>read_memory</code>、<code>write_episode</code>、<code>create_memory</code>、<code>check_staleness</code> 和 <code>query_audit_log</code>——用治理操作替代直接文件访问。每次调用都经过四个执行层：</span>
+    </p>
+
+    <ul>
+      <li><span data-en><strong>RBAC access control.</strong> Roles define per-category read/write permissions. An <code>analyst</code> can read project memories but not behavioral feedback. A <code>compliance_officer</code> can read everything but write nothing. The <code>default</code> role can read all categories but only write to projects.</span><span data-zh><strong>RBAC 访问控制。</strong>角色定义按分类的读写权限。<code>analyst</code> 可以读项目记忆但不能读行为反馈。<code>compliance_officer</code> 可以读所有但不能写。<code>default</code> 角色可以读所有分类但只能写项目。</span></li>
+      <li><span data-en><strong>PII redaction.</strong> Emails, phone numbers, bearer tokens, and API keys are detected via regex and replaced with <code>[REDACTED:type]</code> before the data touches storage. The original values never reach disk.</span><span data-zh><strong>PII 脱敏。</strong>邮箱、手机号、Bearer Token 和 API Key 通过正则检测，在数据写入存储之前替换为 <code>[REDACTED:type]</code>。原始值永远不会到达磁盘。</span></li>
+      <li><span data-en><strong>Retention enforcement.</strong> Per-category <code>max_age_days</code> and <code>episode_cap</code>. When a memory file exceeds its episode cap, the oldest entries are automatically archived to a separate directory with a summary replacing them in the active file.</span><span data-zh><strong>留存策略执行。</strong>按分类设置 <code>max_age_days</code> 和 <code>episode_cap</code>。当记忆文件超过 episode 上限时，最早的条目自动归档到独立目录，在活跃文件中用摘要替代。</span></li>
+      <li><span data-en><strong>Audit logging.</strong> Every operation — reads, writes, creates, and denied accesses — is logged to an append-only JSONL file with timestamp, role, action, target, outcome, and any PII detections. The audit log has its own configurable retention (default: 2,555 days, roughly seven years, matching banking audit requirements).</span><span data-zh><strong>审计日志。</strong>每个操作——读取、写入、创建和拒绝访问——都记录到 append-only JSONL 文件中，包含时间戳、角色、操作、目标、结果和 PII 检测信息。审计日志有独立的可配置留存期（默认 2,555 天，约七年，匹配银行审计要求）。</span></li>
+    </ul>
+
+    <h2><span data-en>Policy as Code</span><span data-zh>策略即代码</span></h2>
+
+    <p>
+      <span data-en>All governance rules live in a single YAML file. Not buried in UI settings, not scattered across agent configurations — a single file that goes into version control, gets reviewed in PRs, and can be audited by compliance teams.</span>
+      <span data-zh>所有治理规则集中在一个 YAML 文件中。不是藏在 UI 设置里，不是分散在 Agent 配置中——一个文件放入版本控制，在 PR 中评审，可以被合规团队审计。</span>
+    </p>
+
+    <pre><code>retention:
+  project:
+    max_age_days: 365
+    episode_cap: 10
+  feedback:
+    max_age_days: null      # never expires
+
+access:
+  roles:
+    default:
+      read: [project, area, feedback, resource]
+      write: [project]
+    compliance_officer:
+      read: [project, area, feedback, resource]
+      write: []              # read-only
+
+pii:
+  enabled: true
+  redact_emails: true
+  redact_phones: true
+  redact_tokens: true
+
+audit:
+  retention_days: 2555       # ~7 years</code></pre>
+
+    <p>
+      <span data-en>This is the entire policy surface. Changing who can write to feedback memories, or how long project contexts are retained, is a one-line YAML change with a clear audit trail in git.</span>
+      <span data-zh>这就是全部的策略表面。改变谁可以写反馈记忆，或项目上下文保留多长时间，是一行 YAML 的修改，在 git 中有清晰的审计追踪。</span>
+    </p>
+
+    <h2><span data-en>The Memory Schema</span><span data-zh>记忆 Schema</span></h2>
+
+    <p>
+      <span data-en>Memory files use a minimal four-field YAML frontmatter, inspired by the PARA method (Projects, Areas, Resources, Archives) adapted for AI agent memory:</span>
+      <span data-zh>记忆文件使用最小化的四字段 YAML frontmatter，灵感来自 PARA 方法（Projects、Areas、Resources、Archives），适配 AI Agent 记忆：</span>
+    </p>
+
+    <pre><code>---
+name: ap-my-project
+description: One-line summary for relevance matching
+category: project
+updated: 2026-05-28
+---</code></pre>
+
+    <p>
+      <span data-en>Four categories, each with a different governance profile: <code>project</code> (read-write, architecture decisions, episode logs), <code>area</code> (read-only, user profile, ongoing responsibilities), <code>feedback</code> (read-only, behavioral corrections), and <code>resource</code> (read-only, external references). The key insight: write permissions should match data volatility, not writer convenience. Project logs change constantly — make them writable. Behavioral corrections are curated — make them read-only to the agent.</span>
+      <span data-zh>四个分类，各有不同的治理策略：<code>project</code>（读写，架构决策，episode 日志）、<code>area</code>（只读，用户画像，持续职责）、<code>feedback</code>（只读，行为纠正）、<code>resource</code>（只读，外部参考）。关键洞察：写权限应匹配数据易变性，而非写入者便利性。项目日志频繁变化——设为可写。行为纠正是策展的——对 Agent 设为只读。</span>
+    </p>
+
+    <h2><span data-en>Zero-Install Usage via MCP</span><span data-zh>通过 MCP 零安装使用</span></h2>
+
+    <p>
+      <span data-en>Because the server implements the MCP protocol, any compatible AI client — Claude Code, Cursor, Windsurf, or any future tool that speaks MCP — can use it without code changes. Installation is a single <code>uvx</code> command. Configuration is adding a JSON block to your MCP settings:</span>
+      <span data-zh>因为 Server 实现了 MCP 协议，任何兼容的 AI 客户端——Claude Code、Cursor、Windsurf，或任何未来支持 MCP 的工具——都可以无需代码修改地使用它。安装是一条 <code>uvx</code> 命令。配置是在 MCP 设置中添加一个 JSON 块：</span>
+    </p>
+
+    <pre><code>{
+  "mcpServers": {
+    "memory-governance": {
+      "command": "uvx",
+      "args": ["--from",
+        "git+https://github.com/mzyag/memory-governance.git",
+        "memory-governance"],
+      "env": {
+        "MG_POLICY_FILE": "/path/to/policy.yaml",
+        "MG_MEMORY_DIR": "/path/to/memory",
+        "MG_ROLE": "default"
+      }
+    }
+  }
+}</code></pre>
+
+    <p>
+      <span data-en>The agent now has six governed tools instead of direct file access. It doesn't know or care that PII is being redacted, that access is being logged, or that old episodes are being archived. It just calls the tools. Governance happens at the boundary, invisible to the agent but deterministic in enforcement.</span>
+      <span data-zh>Agent 现在拥有六个受治理的工具而非直接文件访问。它不知道也不关心 PII 正在被脱敏、访问正在被记录、旧 episode 正在被归档。它只是调用工具。治理在边界处发生，对 Agent 不可见但在执行上是确定性的。</span>
+    </p>
+
+    <h2><span data-en>What This Doesn't Solve (Yet)</span><span data-zh>目前未解决的问题</span></h2>
+
+    <p>
+      <span data-en>This is v0.1 — a foundation, not a complete solution. Current limitations we're aware of:</span>
+      <span data-zh>这是 v0.1——一个基础，不是完整方案。我们已知的当前限制：</span>
+    </p>
+
+    <ul>
+      <li><span data-en><strong>Regex-based PII detection.</strong> It catches standard patterns (emails, phones, tokens) but will miss novel PII formats or PII embedded in natural language. A production deployment in a high-sensitivity environment would benefit from NER-based detection.</span><span data-zh><strong>基于正则的 PII 检测。</strong>它能捕获标准模式（邮箱、手机号、token），但会遗漏新型 PII 格式或嵌入在自然语言中的 PII。在高敏感环境中的生产部署将受益于基于 NER 的检测。</span></li>
+      <li><span data-en><strong>Flat-file storage only.</strong> The governance layer is storage-agnostic by design — the policy engine doesn't care whether the backend is Markdown, SQLite, or S3. But the current implementation only ships with a flat-file store.</span><span data-zh><strong>仅支持文件存储。</strong>治理层在设计上与存储无关——策略引擎不关心后端是 Markdown、SQLite 还是 S3。但当前实现只附带文件存储。</span></li>
+      <li><span data-en><strong>No encryption at rest.</strong> Memory files are plain Markdown. For environments requiring encryption, the storage backend would need to be extended.</span><span data-zh><strong>没有静态加密。</strong>记忆文件是纯 Markdown。对于需要加密的环境，存储后端需要扩展。</span></li>
+      <li><span data-en><strong>Single-node only.</strong> No multi-agent coordination, no distributed locking, no cross-machine sync. These are real needs for team environments, and they're on the roadmap.</span><span data-zh><strong>仅单节点。</strong>没有多 Agent 协调、没有分布式锁、没有跨机器同步。这些是团队环境的真实需求，在路线图中。</span></li>
+    </ul>
+
+    <h2><span data-en>Design Principles</span><span data-zh>设计原则</span></h2>
+
+    <p>
+      <span data-en>Four principles guided the design, each learned from production failures:</span>
+      <span data-zh>四个原则指导了设计，每个都来自生产中的失败教训：</span>
+    </p>
+
+    <ol>
+      <li><span data-en><strong>Governance at the boundary, not in the prompt.</strong> Advisory rules in the prompt achieve 70-90% compliance. Deterministic enforcement in the server achieves 100%. In regulated environments, only one of those numbers is acceptable.</span><span data-zh><strong>治理在边界，不在提示词。</strong>提示词中的建议性规则达到 70-90% 合规率。Server 中的确定性执行达到 100%。在受监管环境中，只有一个数字是可接受的。</span></li>
+      <li><span data-en><strong>Storage-agnostic.</strong> The governance layer doesn't care what's underneath. Swap flat files for SQLite, S3, or a vector database without changing a single policy rule.</span><span data-zh><strong>存储无关。</strong>治理层不关心底层是什么。把文件换成 SQLite、S3 或向量数据库，无需改变任何策略规则。</span></li>
+      <li><span data-en><strong>Policy as code.</strong> YAML in version control, not buried in UI settings. Reviewable in pull requests. Auditable by compliance teams. Diffable across environments.</span><span data-zh><strong>策略即代码。</strong>YAML 在版本控制中，不是藏在 UI 设置里。在 Pull Request 中可评审。合规团队可审计。跨环境可对比。</span></li>
+      <li><span data-en><strong>Local-first.</strong> Your memory stays on your machine. The server runs locally. No cloud dependency, no third-party data processing, no vendor lock-in.</span><span data-zh><strong>本地优先。</strong>记忆留在你的机器上。Server 在本地运行。无云端依赖、无第三方数据处理、无供应商锁定。</span></li>
+    </ol>
+
+    <h2><span data-en>Who Needs This</span><span data-zh>谁需要这个</span></h2>
+
+    <p>
+      <span data-en>If you're a solo developer using Claude Code for personal projects and nothing in your memory files is sensitive — you probably don't. The governance overhead isn't worth it.</span>
+      <span data-zh>如果你是个人开发者，用 Claude Code 做个人项目，记忆文件中没有敏感信息——你可能不需要。治理的开销不值得。</span>
+    </p>
+
+    <p>
+      <span data-en>If any of the following apply, you should care:</span>
+      <span data-zh>如果以下任何一条适用，你应该关注：</span>
+    </p>
+
+    <ul>
+      <li><span data-en>You work in a regulated industry (financial services, healthcare, government)</span><span data-zh>你在受监管行业工作（金融服务、医疗、政府）</span></li>
+      <li><span data-en>Your agent memory contains credentials, API keys, or connection strings</span><span data-zh>你的 Agent 记忆中包含凭证、API Key 或连接字符串</span></li>
+      <li><span data-en>Multiple people or agents share a memory directory</span><span data-zh>多人或多个 Agent 共享记忆目录</span></li>
+      <li><span data-en>You need to answer "what did the agent know at time T?" for audit purposes</span><span data-zh>你需要为审计目的回答"Agent 在时间 T 时知道什么？"</span></li>
+      <li><span data-en>Your compliance team has started asking questions about AI data handling</span><span data-zh>你的合规团队已经开始询问 AI 数据处理的问题</span></li>
+    </ul>
+
+    <p>
+      <span data-en>The project is open source under the MIT license: <a href="https://github.com/mzyag/memory-governance">github.com/mzyag/memory-governance</a>. Contributions, issues, and feedback are welcome.</span>
+      <span data-zh>项目以 MIT 许可证开源：<a href="https://github.com/mzyag/memory-governance">github.com/mzyag/memory-governance</a>。欢迎贡献、提 issue 和反馈。</span>
+    </p>
+
+    <blockquote>
+      <span data-en>Memory is the next attack surface in AI-assisted development. Not because agents are malicious, but because unstructured storage with unrestricted access is a governance gap waiting to be discovered — by an auditor, by a breach, or by a regulator. The right time to add governance is before any of those happen.</span>
+      <span data-zh>记忆是 AI 辅助开发中的下一个攻击面。不是因为 Agent 是恶意的，而是因为不受限制访问的非结构化存储是一个等待被发现的治理缺口——被审计师、被数据泄露、或被监管机构发现。添加治理的正确时机是在这些事情发生之前。</span>
+    </blockquote>
+
+    <div class="article-page-footer">
+      <p><span data-en>Written by Ming Zhou · 2026</span><span data-zh>作者：Ming Zhou · 2026</span></p>
+      <a href="../#writing" class="article-page-back">&larr; <span data-en>Back to all writing</span><span data-zh>返回文章列表</span></a>
+    </div>
+  </main>
+
+  <script src="../js/main.js"></script>
+</body>
+</html>
